@@ -1,20 +1,20 @@
 [![Open in Codespaces](https://classroom.github.com/assets/launch-codespace-2972f46106e565e64193e422d61a12cf1da4916b45550586e14ef0a7c637dd04.svg)](https://classroom.github.com/open-in-codespaces?assignment_repo_id=21627468)
-# [Nome do projeto]
+# Controle Financeiro
 
-[Escreva um ou dois  parágrafo resumindo o objetivo do seu projeto.]
+O projeto tem como objetivo desenvolver um sistema de gerenciamento de inadimplentes para um escritório de contabilidade, visando substituir o atual processo manual realizado em cadernos. A proposta busca oferecer uma solução simples, eficiente e segura que permita registrar clientes em atraso, acompanhar saldos devedores, registrar pagamentos e gerar relatórios para análise e apoio na tomada de decisões.
+
+Com essa ferramenta, o escritório poderá reduzir riscos de erro, eliminar controles manuais pouco confiáveis e contar com informações atualizadas em tempo real. O sistema trará mais confiabilidade, agilidade e segurança na gestão financeira, atendendo diretamente às necessidades do responsável financeiro e contribuindo para um melhor planejamento das estratégias de cobrança.
 
 ## Alunos integrantes da equipe
 
-* [Nome completo do aluno 1]
-* [Nome completo do aluno 2]
-* [Nome completo do aluno 3]
-* [Nome completo do aluno 4]
+Matheus Pereira de Carvalho Silva
 
 ## Professores responsáveis
 
-* [Nome completo do professor 1]
-* [Nome completo do professor 2]
+Cleiton Silva Tavares
+Danilo de Quadros Maia Filho
+Leonardo Vilela Cardoso
 
-## Instruções de utilização
+## Instruções de Replicação/Reprodução
 
-[Assim que a primeira versão do sistema estiver disponível, deverá complementar com as instruções de utilização. Descreva como instalar eventuais dependências e como executar a aplicação.]
+Apresentar instruções de como o trabalho pode ser replicado/reproduzido.
