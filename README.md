@@ -11,9 +11,10 @@ Matheus Pereira de Carvalho Silva
 
 ## Professores responsáveis
 
-Cleiton Silva Tavares
-Danilo de Quadros Maia Filho
-Leonardo Vilela Cardoso
+* Cleiton Silva Tavares
+* Danilo de Quadros Maia Filho
+* Leonardo Vilela Cardoso
+* Raphael Ramos Dias Costa
 
 ## Instruções de Replicação/Reprodução
 
