@@ -1,0 +1,50 @@
+:root {
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #1e293b;
+  background-color: #f8fafc;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Roxo protagonista (destaques) */
+  --cor-principal: #A43F9B;
+  --cor-principal-hover: #8a3583;
+  /* Soft Light + Glass */
+  --bg-base: #f8fafc;
+  --glass-bg: rgba(255, 255, 255, 0.75);
+  --glass-bg-10: rgba(248, 250, 252, 0.9);
+  --glass-border: #e2e8f0;
+  --glass-border-5: rgba(226, 232, 240, 0.8);
+  --text-primary: #0f172a;
+  --text-secondary: #64748b;
+  --text-muted: #94a3b8;
+  --shadow-accent: rgba(124, 58, 237, 0.25);
+  --chart-stroke-bg: #e2e8f0;
+  --chart-stroke-pago: #cbd5e1;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+a {
+  font-weight: 500;
+  color: var(--cor-principal);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--cor-principal-hover);
+}
+
+button {
+  font-family: inherit;
+}
