@@ -1,0 +1,16 @@
+# Build
+target/
+
+# Configuração local (contém chaves e dados sensíveis - NUNCA commitar)
+src/main/resources/application-local.properties
+
+# Banco local
+data/*.db
+!data/.gitkeep
+
+# IDE
+.idea/
+*.iml
+.classpath
+.project
+.settings/
