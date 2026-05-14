@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { AxiosError } from "axios";
 import { api, getApiErrorMessage } from "@/lib/api";
 
 type AbaId = "basico" | "credito" | "nfe" | "preco" | "cashback" | "ia";
@@ -331,19 +332,30 @@ export default function WebReformaTributaria() {
   }
 
   async function consultarRegimeCnpj() {
-    const apenasDigitos = cnpjRegime.replace(/\D/g, "");
-    if (apenasDigitos.length < 14) {
-      setErroRegimeCnpj("Informe um CNPJ válido com 14 dígitos.");
+    const cnpjNumerico = cnpjRegime.replace(/\D/g, "");
+    if (cnpjNumerico.length !== 14) {
+      setErroRegimeCnpj("Informe um CNPJ com 14 dígitos.");
       return;
     }
     setErroRegimeCnpj(null);
     setRegimeCnpjResult(null);
     setLoadingRegimeCnpj(true);
     try {
-      const res = await api.get<RegimePorCnpjResponse>(`/api/tributos/regime/${apenasDigitos}`);
-      setRegimeCnpjResult(res.data);
-    } catch {
-      setErroRegimeCnpj("Não foi possível consultar o CNPJ agora. Tente novamente.");
+      const res = await api.get<RegimePorCnpjResponse>(`/api/tributos/regime/${cnpjNumerico}`);
+      setRegimeCnpjResult({
+        cnpj: String(res.data?.cnpj ?? cnpjNumerico),
+        nomeEmpresa: String(res.data?.nomeEmpresa ?? ""),
+        regime: String(res.data?.regime ?? ""),
+      });
+    } catch (e: unknown) {
+      const status = (e as AxiosError | undefined)?.response?.status;
+      if (status === 404) {
+        setErroRegimeCnpj("CNPJ não encontrado");
+      } else if (status === 500) {
+        setErroRegimeCnpj("Falha ao consultar serviço de CNPJ, tente novamente");
+      } else {
+        setErroRegimeCnpj(getApiErrorMessage(e, "Não foi possível consultar o CNPJ agora. Tente novamente."));
+      }
     } finally {
       setLoadingRegimeCnpj(false);
     }

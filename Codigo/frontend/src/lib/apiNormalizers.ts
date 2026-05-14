@@ -21,7 +21,8 @@ export function normalizeClienteFromApi(raw: Record<string, unknown>): Cliente {
     nome: String(raw.nome ?? ""),
     email: raw.email != null ? String(raw.email) : undefined,
     cpf: raw.cpf != null ? String(raw.cpf) : raw.cpfCnpj != null ? String(raw.cpfCnpj) : undefined,
-    telefone: raw.telefone != null ? String(raw.telefone) : undefined,
+    telefone: raw.telefone != null ? String(raw.telefone) : raw.telefoneFixo != null ? String(raw.telefoneFixo) : undefined,
+    celular: raw.celular != null ? String(raw.celular) : undefined,
     endereco: raw.endereco != null ? String(raw.endereco) : undefined,
     situacao: situacao as Cliente["situacao"],
     createdAt: raw.createdAt != null ? String(raw.createdAt) : raw.criadoEm != null ? String(raw.criadoEm) : undefined,
@@ -46,6 +47,7 @@ export function normalizeClienteToApi(c: Partial<Cliente>): Record<string, unkno
     email: c.email,
     cpfCnpj: c.cpf?.replace(/\D/g, "") || undefined,
     telefone: c.telefone?.replace(/\D/g, "") || undefined,
+    celular: c.celular?.replace(/\D/g, "") || undefined,
     endereco: c.endereco,
     statusCliente,
   };

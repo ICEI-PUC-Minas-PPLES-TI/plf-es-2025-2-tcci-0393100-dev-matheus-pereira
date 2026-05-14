@@ -10,6 +10,7 @@ export type Cliente = {
   email?: string;
   cpf?: string;
   telefone?: string;
+  celular?: string;
   endereco?: string;
   situacao?: "Ativo" | "Inadimplente" | "Inativo";
    /** Dívida total do cliente (somatório das inadimplências em aberto). */

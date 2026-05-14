@@ -59,6 +59,18 @@ function getCobrancaParams(
 
 const COR_PRINCIPAL = "#A43F9B";
 const COR_VENCIMENTO = "#dc2626";
+const PIX_CODE =
+  "00020126360014br.gov.bcb.pix0114+55319982313435204000053039865802BR5922MCA SERVICOS CONTABEIS6015Conceicao do Ma610935860-000622905250JUH02173447164451724462563048D28";
+const PIX_INFO = {
+  beneficiario: "MCA Serviços Contábeis",
+  cidade: "Conceição do Mato Dentro",
+  chave: "+55 31 99823-1343",
+  banco: "Sicoob",
+};
+
+function buildPixQrCodeImageUrl(code: string, size = 220): string {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(code)}&bgcolor=ffffff&color=1a1a2e&qzone=1`;
+}
 
 function escapeHtml(s: string): string {
   return s
@@ -74,7 +86,8 @@ function escapeHtml(s: string): string {
  */
 export function buildCobrancaEmailHtml(
   item: Inadimplencia,
-  nomeCliente: string
+  nomeCliente: string,
+  stripePaymentLinkUrl?: string | null
 ): string {
   const mesAno = formatarMesAno(item.vencimento);
   const valor = (item.valor ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -82,6 +95,12 @@ export function buildCobrancaEmailHtml(
   const vencimento = formatarData(item.vencimento);
   const prot = protocolo(item.id, item.vencimento);
   const descricao = (item.descricao || "").trim();
+  const linkPagamento =
+    typeof stripePaymentLinkUrl === "string" && /^https:\/\//i.test(stripePaymentLinkUrl.trim())
+      ? stripePaymentLinkUrl.trim()
+      : null;
+  const linkPagamentoEscapado = linkPagamento ? escapeHtml(linkPagamento) : "";
+  const pixQrUrl = PIX_CODE ? buildPixQrCodeImageUrl(PIX_CODE) : "";
 
   return (
     '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:0;font-family:Arial,sans-serif;background:#fff;">' +
@@ -103,6 +122,24 @@ export function buildCobrancaEmailHtml(
     `<p style="margin:0;font-size:14px;color:#333;"><strong>Valor:</strong> <span style="color:${COR_PRINCIPAL};font-weight:bold;">${escapeHtml(valor)}</span></p>` +
     (descricao ? `<p style="margin:12px 0 0;font-size:14px;color:#333;"><strong>Descrição:</strong> ${escapeHtml(descricao)}</p>` : "") +
     "</div>" +
+    (linkPagamento
+      ? `<div style="background:#f8fafc;border-left:4px solid ${COR_PRINCIPAL};padding:16px 20px;margin:0 0 20px;">` +
+        `<p style="margin:0 0 10px;font-size:16px;font-weight:bold;color:${COR_PRINCIPAL};">Pagamento online</p>` +
+        '<p style="margin:0 0 14px;font-size:14px;color:#333;">Clique no botão abaixo para pagar com Boleto ou Pix.</p>' +
+        `<p style="margin:0 0 12px;"><a href="${linkPagamentoEscapado}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:${COR_PRINCIPAL};color:#fff;text-decoration:none;font-weight:bold;font-size:14px;padding:10px 16px;border-radius:4px;">Pagar com Boleto ou Pix</a></p>` +
+        `<p style="margin:0;font-size:12px;color:#555;word-break:break-all;">Se o botão não abrir, copie e cole este link no navegador:<br><a href="${linkPagamentoEscapado}" target="_blank" rel="noopener noreferrer" style="color:${COR_PRINCIPAL};">${linkPagamentoEscapado}</a></p>` +
+        "</div>"
+      : "") +
+    (pixQrUrl
+      ? `<div style="background:#f8fafc;border-left:4px solid ${COR_PRINCIPAL};padding:16px 20px;margin:0 0 20px;">` +
+        `<p style="margin:0 0 10px;font-size:16px;font-weight:bold;color:${COR_PRINCIPAL};">Pagamento via Pix</p>` +
+        `<p style="margin:0 0 10px;font-size:13px;color:#555;">${escapeHtml(PIX_INFO.banco)} · ${escapeHtml(PIX_INFO.beneficiario)}</p>` +
+        '<p style="margin:0 0 12px;font-size:14px;color:#333;">Escaneie o QR Code abaixo para realizar o pagamento via Pix.</p>' +
+        `<p style="margin:0 0 12px;"><img src="${escapeHtml(pixQrUrl)}" alt="QR Code Pix" style="max-width:260px;width:100%;height:auto;border:1px solid #e5e7eb;border-radius:6px;" /></p>` +
+        '<p style="margin:0 0 6px;font-size:13px;color:#333;"><strong>Pix Copia e Cola:</strong></p>' +
+        `<p style="margin:0;font-size:12px;color:#555;word-break:break-all;">${escapeHtml(PIX_CODE)}</p>` +
+        "</div>"
+      : '<p style="margin:0 0 20px;font-size:13px;color:#666;">Pagamento via Pix disponível sob solicitação.</p>') +
     '<p style="margin:0 0 8px;font-size:15px;color:#333;">Atenciosamente,</p>' +
     `<p style="margin:0;font-size:15px;color:${COR_PRINCIPAL};font-weight:600;">Equipe Contabilidade São Judas Tadeu</p>` +
     "</div></div></body></html>"
@@ -114,11 +151,16 @@ export function buildCobrancaEmailHtml(
  */
 export async function copyCobrancaEmailToClipboard(
   item: Inadimplencia,
-  nomeCliente: string
+  nomeCliente: string,
+  stripePaymentLinkUrl?: string | null
 ): Promise<boolean> {
-  const html = buildCobrancaEmailHtml(item, nomeCliente);
+  const html = buildCobrancaEmailHtml(item, nomeCliente, stripePaymentLinkUrl);
+  const linkPagamento =
+    typeof stripePaymentLinkUrl === "string" && /^https:\/\//i.test(stripePaymentLinkUrl.trim())
+      ? stripePaymentLinkUrl.trim()
+      : null;
   const plain =
-    `Prezado(a),\n\nSegue cobrança referente ao débito em aberto.\n\nCliente: ${nomeCliente}\nProtocolo: ${protocolo(item.id, item.vencimento)}\nVencimento: ${formatarData(item.vencimento)}\nJuros: ${(item.juros ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}\nValor: ${(item.valor ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}\n\nAtenciosamente,\nEquipe Contabilidade São Judas Tadeu`;
+    `Prezado(a),\n\nSegue cobrança referente ao débito em aberto.\n\nCliente: ${nomeCliente}\nProtocolo: ${protocolo(item.id, item.vencimento)}\nVencimento: ${formatarData(item.vencimento)}\nJuros: ${(item.juros ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}\nValor: ${(item.valor ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}${linkPagamento ? `\n\nPagamento online (Boleto/Pix):\n${linkPagamento}` : ""}\n\nPagamento via Pix (${PIX_INFO.banco}):\nChave: ${PIX_INFO.chave}\nPix Copia e Cola:\n${PIX_CODE}\n\nAtenciosamente,\nEquipe Contabilidade São Judas Tadeu`;
   try {
     await navigator.clipboard.write([
       new ClipboardItem({

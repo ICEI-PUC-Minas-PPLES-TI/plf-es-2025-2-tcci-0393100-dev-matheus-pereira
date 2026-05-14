@@ -265,14 +265,24 @@ export default function WebServicos() {
           <h1 className="page-servicos__title">Serviços do Escritório</h1>
           <p className="page-servicos__subtitle">Cadastre, edite e exclua os serviços oferecidos pelo escritório.</p>
         </div>
-        <button
-          type="button"
-          className="btn btn--primary"
-          onClick={abrirNovo}
-          title="Cadastrar novo serviço no catálogo do escritório"
-        >
-          + Novo Serviço
-        </button>
+        <div className="page-servicos__header-acoes">
+          <button
+            type="button"
+            className="btn btn--primary"
+            onClick={() => imprimirRelatorioServicos(servicosExibidos)}
+            disabled={servicosExibidos.length === 0}
+          >
+            Gerar relatório
+          </button>
+          <button
+            type="button"
+            className="btn btn--primary"
+            onClick={abrirNovo}
+            title="Cadastrar novo serviço no catálogo do escritório"
+          >
+            + Novo Serviço
+          </button>
+        </div>
       </div>
 
       {erroLista && <p className="page-servicos__erro">{erroLista}</p>}
@@ -306,23 +316,27 @@ export default function WebServicos() {
                       ? s.valorPadrao.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
                       : "—"}
                   </td>
-                  <td className="page-servicos__acoes">
-                    <button
-                      type="button"
-                      className="page-servicos__acao page-servicos__acao--editar"
-                      onClick={() => abrirEditar(s)}
-                      title="Editar este serviço"
-                    >
-                      Editar
-                    </button>
-                    <button
-                      type="button"
-                      className="page-servicos__acao page-servicos__acao--excluir"
-                      onClick={() => abrirConfirmarExclusao(s)}
-                      title="Excluir este serviço (desativar)"
-                    >
-                      Excluir
-                    </button>
+                  <td>
+                    <div className="page-servicos__acoes">
+                      <button
+                        type="button"
+                        className="page-servicos__acao page-servicos__acao--editar"
+                        onClick={() => abrirEditar(s)}
+                        title="Editar este serviço"
+                        aria-label="Editar este serviço"
+                      >
+                        <EditIcon />
+                      </button>
+                      <button
+                        type="button"
+                        className="page-servicos__acao page-servicos__acao--excluir"
+                        onClick={() => abrirConfirmarExclusao(s)}
+                        title="Excluir este serviço (desativar)"
+                        aria-label="Excluir este serviço"
+                      >
+                        <TrashIcon />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -354,17 +368,6 @@ export default function WebServicos() {
           </button>
         </div>
       )}
-
-      <div className="page-servicos__relatorio">
-        <button
-          type="button"
-          className="btn btn--secondary"
-          onClick={() => imprimirRelatorioServicos(servicosExibidos)}
-          disabled={servicosExibidos.length === 0}
-        >
-          Gerar relatório
-        </button>
-      </div>
 
       {servicoParaExcluir &&
         createPortal(
@@ -434,5 +437,25 @@ export default function WebServicos() {
         </div>
       )}
     </div>
+  );
+}
+
+function EditIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <line x1="10" y1="11" x2="10" y2="17" />
+      <line x1="14" y1="11" x2="14" y2="17" />
+    </svg>
   );
 }

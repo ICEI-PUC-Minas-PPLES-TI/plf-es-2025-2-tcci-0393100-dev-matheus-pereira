@@ -1,5 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
-import { buildMailtoCobrancaUrl, buildGmailComposeUrl, openMailto, openGmailCompose } from "@/lib/mailtoCobranca";
+import {
+  buildMailtoCobrancaUrl,
+  buildGmailComposeUrl,
+  buildCobrancaEmailHtml,
+  openMailto,
+  openGmailCompose,
+} from "@/lib/mailtoCobranca";
 import type { Inadimplencia } from "@/types/api";
 
 describe("buildMailtoCobrancaUrl", () => {
@@ -97,6 +103,33 @@ describe("buildGmailComposeUrl", () => {
     expect(url).toContain("to=cliente%40email.com");
     expect(url).toContain("su=");
     expect(url).toContain("body=");
+  });
+});
+
+describe("buildCobrancaEmailHtml", () => {
+  it("inclui seção de pagamento online quando link Stripe é https", () => {
+    const item: Inadimplencia = {
+      id: "1",
+      clienteId: "c1",
+      valor: 100,
+      vencimento: "2026-01-15",
+    };
+    const html = buildCobrancaEmailHtml(item, "Cliente", "https://pay.stripe.com/test_link");
+    expect(html).toContain("Pagamento online");
+    expect(html).toContain("Pagar com Boleto ou Pix");
+    expect(html).toContain("https://pay.stripe.com/test_link");
+  });
+
+  it("não inclui seção de pagamento online quando link é inválido", () => {
+    const item: Inadimplencia = {
+      id: "1",
+      clienteId: "c1",
+      valor: 100,
+      vencimento: "2026-01-15",
+    };
+    const html = buildCobrancaEmailHtml(item, "Cliente", "http://inseguro.com");
+    expect(html).not.toContain("Pagamento online");
+    expect(html).not.toContain("Pagar com Boleto ou Pix");
   });
 });
 

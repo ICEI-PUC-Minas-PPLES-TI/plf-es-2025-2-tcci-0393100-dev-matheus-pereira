@@ -537,7 +537,23 @@ export default function WebInadimplentes() {
 
   /** Copia o e-mail formatado (HTML) e abre o Gmail; usuário cola (Ctrl+V) no corpo. */
   async function enviarEmailCobranca(item: Inadimplencia, nomeCliente: string, emailCliente?: string) {
-    const copiou = await copyCobrancaEmailToClipboard(item, nomeCliente);
+    let stripePaymentLinkUrl: string | null = null;
+    if (!isMockEnabled()) {
+      try {
+        const res = await api.post<{ stripePaymentLinkUrl?: string | null }>("/api/notificacoes/enviar-cobranca", {
+          clienteId: item.clienteId,
+          dividaId: item.id ?? undefined,
+          gerarLinkPagamentoStripe: true,
+        });
+        const rawLink = res.data?.stripePaymentLinkUrl;
+        stripePaymentLinkUrl =
+          typeof rawLink === "string" && /^https:\/\//i.test(rawLink.trim()) ? rawLink.trim() : null;
+      } catch (e: unknown) {
+        setErro(getApiErrorMessage(e, "Falha ao gerar cobrança para envio por e-mail."));
+        return;
+      }
+    }
+    const copiou = await copyCobrancaEmailToClipboard(item, nomeCliente, stripePaymentLinkUrl);
     if (copiou) {
       setToastEmailFormatado(true);
       setTimeout(() => setToastEmailFormatado(false), 5000);

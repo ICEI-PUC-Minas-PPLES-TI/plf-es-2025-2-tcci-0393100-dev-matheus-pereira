@@ -36,6 +36,13 @@ describe("normalizeClienteFromApi", () => {
     const c = normalizeClienteFromApi(raw);
     expect(c.cpf).toBe("12345678900");
   });
+
+  it("mapeia telefone fixo e celular", () => {
+    const raw = { nome: "Z", telefone: "1133334444", celular: "11999998888" };
+    const c = normalizeClienteFromApi(raw);
+    expect(c.telefone).toBe("1133334444");
+    expect(c.celular).toBe("11999998888");
+  });
 });
 
 describe("normalizeClienteToApi", () => {
@@ -47,6 +54,16 @@ describe("normalizeClienteToApi", () => {
   it("envia cpfCnpj só com dígitos", () => {
     const payload = normalizeClienteToApi({ nome: "B", cpf: "123.456.789-00" });
     expect(payload.cpfCnpj).toBe("12345678900");
+  });
+
+  it("envia telefone e celular só com dígitos", () => {
+    const payload = normalizeClienteToApi({
+      nome: "C",
+      telefone: "(11) 3333-4444",
+      celular: "(11) 99999-8888",
+    });
+    expect(payload.telefone).toBe("1133334444");
+    expect(payload.celular).toBe("11999998888");
   });
 });
 
