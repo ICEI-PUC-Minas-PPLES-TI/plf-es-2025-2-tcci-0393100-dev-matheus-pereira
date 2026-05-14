@@ -26,6 +26,7 @@ public class ExtratoClienteDTO {
         private String nome;
         private String cpfCnpj;
         private String telefone;
+        private String celular;
         private String email;
         private String status;
         private BigDecimal saldoDevedorTotal;

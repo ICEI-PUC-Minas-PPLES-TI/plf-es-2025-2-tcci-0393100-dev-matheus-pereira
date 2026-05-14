@@ -5,13 +5,15 @@ import com.pucminas.sgi.exception.EmailSendException;
 import com.pucminas.sgi.repository.EmailConfigRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeMessage;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Component;
 
-import java.util.Optional;
 import java.util.Properties;
 
 /**
@@ -70,6 +72,39 @@ public class EmailGateway {
         try {
             sender.send(message);
             log.info("Email enviado para {} - assunto: {}", destinatario, assunto);
+        } catch (Exception e) {
+            log.error("Falha ao enviar email para {}: {}", destinatario, e.getMessage());
+            throw new EmailSendException("Falha ao enviar email: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Envia e-mail com parte texto e parte HTML (clientes como Gmail exibem o HTML com botões/links).
+     */
+    public void enviarTextoEHtml(String destinatario, String assunto, String textoPlano, String html) {
+        JavaMailSender sender = obterSender();
+        if (sender == null) {
+            throw new EmailSendException("Nenhuma configuração SMTP ativa disponível para envio.");
+        }
+        String remetente = obterRemetente();
+        if (remetente == null || remetente.isBlank()) {
+            throw new EmailSendException("Email remetente não configurado.");
+        }
+        String nomeRemetente = obterNomeRemetente();
+        try {
+            MimeMessage message = sender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
+            helper.setFrom(nomeRemetente != null && !nomeRemetente.isBlank()
+                    ? nomeRemetente + " <" + remetente + ">"
+                    : remetente);
+            helper.setTo(destinatario);
+            helper.setSubject(assunto);
+            helper.setText(textoPlano != null ? textoPlano : "", html != null ? html : "");
+            sender.send(message);
+            log.info("Email HTML enviado para {} - assunto: {}", destinatario, assunto);
+        } catch (MessagingException e) {
+            log.error("Falha ao montar/enviar email MIME para {}: {}", destinatario, e.getMessage());
+            throw new EmailSendException("Falha ao enviar email: " + e.getMessage(), e);
         } catch (Exception e) {
             log.error("Falha ao enviar email para {}: {}", destinatario, e.getMessage());
             throw new EmailSendException("Falha ao enviar email: " + e.getMessage(), e);

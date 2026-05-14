@@ -2,8 +2,11 @@ package com.pucminas.sgi.service;
 
 import com.pucminas.sgi.config.JwtTokenProvider;
 import com.pucminas.sgi.dto.request.LoginDTO;
+import com.pucminas.sgi.dto.request.RedefinirSenhaRequestDTO;
+import com.pucminas.sgi.dto.request.ValidarLoginRequestDTO;
 import com.pucminas.sgi.dto.response.LoginResponseDTO;
 import com.pucminas.sgi.dto.response.UsuarioResponseDTO;
+import com.pucminas.sgi.dto.response.ValidarLoginResponseDTO;
 import com.pucminas.sgi.entity.Usuario;
 import com.pucminas.sgi.enums.StatusUsuario;
 import com.pucminas.sgi.exception.ResourceNotFoundException;
@@ -99,5 +102,31 @@ public class AuthService {
                 .ultimoAcesso(u.getUltimoAcesso())
                 .criadoEm(u.getCriadoEm())
                 .build();
+    }
+
+    @Transactional(readOnly = true)
+    public ValidarLoginResponseDTO validarLoginRecuperacao(ValidarLoginRequestDTO dto) {
+        String login = dto.getLogin() == null ? "" : dto.getLogin().trim();
+        Usuario usuario = usuarioRepository.findByTelefone(login)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuário com login", login));
+        return ValidarLoginResponseDTO.builder()
+                .encontrado(true)
+                .login(usuario.getTelefone())
+                .nome(usuario.getNome())
+                .mensagem("Login encontrado. Você já pode definir uma nova senha.")
+                .build();
+    }
+
+    @Transactional
+    public void redefinirSenhaSemToken(RedefinirSenhaRequestDTO dto) {
+        String login = dto.getLogin() == null ? "" : dto.getLogin().trim();
+        if (!dto.getNovaSenha().equals(dto.getConfirmarSenha())) {
+            throw new com.pucminas.sgi.exception.BusinessRuleException("Confirmação de senha não confere.");
+        }
+        Usuario usuario = usuarioRepository.findByTelefone(login)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuário com login", login));
+        usuario.setSenha(passwordEncoder.encode(dto.getNovaSenha()));
+        usuarioRepository.save(usuario);
+        log.info("Senha redefinida via recuperação para login: {}", login);
     }
 }

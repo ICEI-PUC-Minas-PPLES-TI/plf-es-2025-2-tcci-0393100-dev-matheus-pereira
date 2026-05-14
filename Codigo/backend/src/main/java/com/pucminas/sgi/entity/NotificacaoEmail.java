@@ -48,6 +48,10 @@ public class NotificacaoEmail {
     @Column(columnDefinition = "TEXT", nullable = false)
     private String corpoEmail;
 
+    /** Versão HTML do mesmo envio (multipart/alternative), para reenvio e clientes que renderizam HTML. */
+    @Column(columnDefinition = "TEXT")
+    private String corpoHtml;
+
     @Column(nullable = false, precision = 19, scale = 0)
     private BigDecimal valorComunicado;
 

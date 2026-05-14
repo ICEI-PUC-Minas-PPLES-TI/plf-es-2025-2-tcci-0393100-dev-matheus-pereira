@@ -3,8 +3,12 @@ package com.pucminas.sgi.controller;
 import com.pucminas.sgi.config.JwtTokenProvider;
 import com.pucminas.sgi.dto.request.CadastroUsuarioDTO;
 import com.pucminas.sgi.dto.request.LoginDTO;
+import com.pucminas.sgi.dto.request.RedefinirSenhaRequestDTO;
+import com.pucminas.sgi.dto.request.ValidarLoginRequestDTO;
 import com.pucminas.sgi.dto.response.LoginResponseDTO;
+import com.pucminas.sgi.dto.response.MensagemResponseDTO;
 import com.pucminas.sgi.dto.response.UsuarioResponseDTO;
+import com.pucminas.sgi.dto.response.ValidarLoginResponseDTO;
 import com.pucminas.sgi.service.AuthService;
 import com.pucminas.sgi.service.UsuarioService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -52,6 +56,21 @@ public class AuthController {
                 .build();
         usuarioService.cadastrarPublico(payload);
         return ResponseEntity.status(HttpStatus.CREATED).build();
+    }
+
+    @PostMapping("/validar-login-recuperacao")
+    @Operation(summary = "Validar login para recuperação de senha", description = "Primeiro passo do fluxo de esqueci a senha")
+    public ResponseEntity<ValidarLoginResponseDTO> validarLoginRecuperacao(@Valid @RequestBody ValidarLoginRequestDTO dto) {
+        return ResponseEntity.ok(authService.validarLoginRecuperacao(dto));
+    }
+
+    @PostMapping("/redefinir-senha")
+    @Operation(summary = "Redefinir senha sem token", description = "Segundo passo: após validar login, permite definir nova senha")
+    public ResponseEntity<MensagemResponseDTO> redefinirSenha(@Valid @RequestBody RedefinirSenhaRequestDTO dto) {
+        authService.redefinirSenhaSemToken(dto);
+        return ResponseEntity.ok(MensagemResponseDTO.builder()
+                .mensagem("Senha alterada com sucesso.")
+                .build());
     }
 
     @PostMapping("/logout")

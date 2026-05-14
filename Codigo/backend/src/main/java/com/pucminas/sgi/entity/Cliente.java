@@ -37,7 +37,10 @@ public class Cliente {
     private String cpfCnpj;
 
     private String email;
+    /** Telefone fixo (8 dígitos locais ou 10 com DDD em registros legados). */
     private String telefone;
+    /** Celular com DDD (10 ou 11 dígitos). */
+    private String celular;
     private String endereco;
 
     @Enumerated(EnumType.STRING)

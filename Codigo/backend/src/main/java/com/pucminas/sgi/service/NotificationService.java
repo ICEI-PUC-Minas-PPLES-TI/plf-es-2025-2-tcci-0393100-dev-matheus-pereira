@@ -11,13 +11,16 @@ import com.pucminas.sgi.exception.ResourceNotFoundException;
 import com.pucminas.sgi.repository.ClienteRepository;
 import com.pucminas.sgi.repository.DividaRepository;
 import com.pucminas.sgi.repository.NotificacaoEmailRepository;
+import com.pucminas.sgi.util.CobrancaEmailHtmlBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -31,15 +34,18 @@ public class NotificationService {
     private final ClienteRepository clienteRepository;
     private final DividaRepository dividaRepository;
     private final EmailGateway emailGateway;
+    private final String nomeEscritorioCobranca;
 
     public NotificationService(NotificacaoEmailRepository notificacaoRepository,
                                ClienteRepository clienteRepository,
                                DividaRepository dividaRepository,
-                               EmailGateway emailGateway) {
+                               EmailGateway emailGateway,
+                               @Value("${cobranca.email.nome-escritorio:Contabilidade São Judas Tadeu}") String nomeEscritorioCobranca) {
         this.notificacaoRepository = notificacaoRepository;
         this.clienteRepository = clienteRepository;
         this.dividaRepository = dividaRepository;
         this.emailGateway = emailGateway;
+        this.nomeEscritorioCobranca = nomeEscritorioCobranca;
     }
 
     @Transactional
@@ -58,6 +64,9 @@ public class NotificationService {
         String descricao;
         String assunto;
         String corpo;
+        Divida dividaUnica = null;
+        List<Divida> dividasAgregadas = null;
+
         if (dividaId != null) {
             Divida d = dividaRepository.findById(dividaId)
                     .orElseThrow(() -> new ResourceNotFoundException("Dívida", dividaId));
@@ -67,6 +76,7 @@ public class NotificationService {
             if (d.getValorDevedor().compareTo(BigDecimal.ZERO) <= 0) {
                 throw new BusinessRuleException("Dívida já está quitada.");
             }
+            dividaUnica = d;
             valorDevido = d.getValorDevedor();
             protocolo = d.getProtocolo();
             vencimento = d.getVencimento().toString();
@@ -87,9 +97,10 @@ public class NotificationService {
             corpoBuilder.append("\nPor favor, regularize sua situação.\n\nAtenciosamente,\nEscritório de Contabilidade");
             corpo = corpoBuilder.toString();
         } else {
-            List<Divida> abertas = dividaRepository.findByCliente_ClienteIdAndStatusDivida(clienteId, com.pucminas.sgi.enums.StatusDivida.EM_ABERTO);
+            List<Divida> abertas = new ArrayList<>(dividaRepository.findByCliente_ClienteIdAndStatusDivida(clienteId, com.pucminas.sgi.enums.StatusDivida.EM_ABERTO));
             abertas.addAll(dividaRepository.findByCliente_ClienteIdAndStatusDivida(clienteId, com.pucminas.sgi.enums.StatusDivida.PARCIAL));
             abertas.addAll(dividaRepository.findByCliente_ClienteIdAndStatusDivida(clienteId, com.pucminas.sgi.enums.StatusDivida.VENCIDA));
+            dividasAgregadas = abertas;
             valorDevido = abertas.stream().map(Divida::getValorDevedor).reduce(BigDecimal.ZERO, BigDecimal::add);
             if (valorDevido.compareTo(BigDecimal.ZERO) <= 0) {
                 throw new BusinessRuleException("Cliente não possui débitos em aberto.");
@@ -107,6 +118,7 @@ public class NotificationService {
             assunto = "Cobrança - Débitos em Aberto";
             corpo = corpoBuilder.toString();
         }
+
         NotificacaoEmail notif = NotificacaoEmail.builder()
                 .clienteId(clienteId)
                 .dividaId(dividaId)
@@ -120,8 +132,39 @@ public class NotificationService {
                 .proximaTentativa(LocalDateTime.now())
                 .build();
         notif = notificacaoRepository.save(notif);
+
+        String htmlCorpo;
+        if (dividaUnica != null) {
+            BigDecimal jurosCentavos = dividaUnica.getValorDevedor().subtract(dividaUnica.getValorOriginal()).max(BigDecimal.ZERO);
+            htmlCorpo = CobrancaEmailHtmlBuilder.htmlCobrancaDividaUnica(
+                    nomeEscritorioCobranca,
+                    cliente.getNome(),
+                    dividaUnica.getProtocolo(),
+                    dividaUnica.getVencimento(),
+                    CobrancaEmailHtmlBuilder.centavosParaReais(jurosCentavos),
+                    CobrancaEmailHtmlBuilder.centavosParaReais(dividaUnica.getValorDevedor()));
+        } else {
+            BigDecimal jurosTotalCentavos = dividasAgregadas.stream()
+                    .map(d -> d.getValorDevedor().subtract(d.getValorOriginal()).max(BigDecimal.ZERO))
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            List<CobrancaEmailHtmlBuilder.LinhaResumo> linhas = dividasAgregadas.stream()
+                    .map(d -> new CobrancaEmailHtmlBuilder.LinhaResumo(
+                            d.getProtocolo(),
+                            d.getVencimento(),
+                            CobrancaEmailHtmlBuilder.centavosParaReais(d.getValorDevedor())))
+                    .toList();
+            htmlCorpo = CobrancaEmailHtmlBuilder.htmlCobrancaAgregada(
+                    nomeEscritorioCobranca,
+                    cliente.getNome(),
+                    linhas,
+                    CobrancaEmailHtmlBuilder.centavosParaReais(jurosTotalCentavos),
+                    CobrancaEmailHtmlBuilder.centavosParaReais(valorDevido));
+        }
+        notif.setCorpoHtml(htmlCorpo);
+        notif = notificacaoRepository.save(notif);
+
         try {
-            emailGateway.enviar(cliente.getEmail(), assunto, corpo, valorDevido);
+            emailGateway.enviarTextoEHtml(cliente.getEmail(), assunto, notif.getCorpoEmail(), notif.getCorpoHtml());
             notif.setStatusEnvio(StatusEnvio.ENVIADO);
             notif.setDataEnvio(LocalDateTime.now());
         } catch (Exception e) {
@@ -140,7 +183,11 @@ public class NotificationService {
         int enviados = 0;
         for (NotificacaoEmail notif : falhas) {
             try {
-                emailGateway.enviar(notif.getEmailDestino(), notif.getAssunto(), notif.getCorpoEmail(), notif.getValorComunicado());
+                if (notif.getCorpoHtml() != null && !notif.getCorpoHtml().isBlank()) {
+                    emailGateway.enviarTextoEHtml(notif.getEmailDestino(), notif.getAssunto(), notif.getCorpoEmail(), notif.getCorpoHtml());
+                } else {
+                    emailGateway.enviar(notif.getEmailDestino(), notif.getAssunto(), notif.getCorpoEmail(), notif.getValorComunicado());
+                }
                 notif.setStatusEnvio(StatusEnvio.ENVIADO);
                 notif.setDataEnvio(LocalDateTime.now());
                 notificacaoRepository.save(notif);

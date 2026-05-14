@@ -20,4 +20,6 @@ public interface NotificacaoEmailRepository extends JpaRepository<NotificacaoEma
     List<NotificacaoEmail> findByClienteIdOrderByDataEnvioDesc(UUID clienteId);
 
     List<NotificacaoEmail> findByStatusEnvioAndProximaTentativaBefore(StatusEnvio status, LocalDateTime data);
+
+    List<NotificacaoEmail> findByCriadoEmBetween(LocalDateTime inicio, LocalDateTime fim);
 }

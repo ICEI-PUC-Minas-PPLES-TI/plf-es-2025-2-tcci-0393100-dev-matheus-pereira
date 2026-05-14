@@ -13,6 +13,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
@@ -40,19 +41,55 @@ public class CnpjConsultaService {
     @Value("${cnpj.api.brasil.base-url:https://brasilapi.com.br/api/cnpj/v1}")
     private String brasilApiBaseUrl;
 
+    @Value("${cnpj.api.connect-timeout-ms:5000}")
+    private int connectTimeoutMs;
+
+    @Value("${cnpj.api.read-timeout-ms:8000}")
+    private int readTimeoutMs;
+
     public RegimeCnpjResponseDTO consultarRegime(String cnpjInformado) {
         String cnpj = limparCnpj(cnpjInformado);
+        configurarTimeouts();
 
-        try {
-            return consultarNoGovBr(cnpj);
-        } catch (Exception govError) {
-            log.warn("Falha na API gov.br para CNPJ {}: {}", cnpj, govError.getMessage());
+        // Quando não há credenciais gov.br, prioriza BrasilAPI para reduzir latência.
+        boolean semCredenciaisGov = cpfUsuario == null || cpfUsuario.isBlank();
+        semCredenciaisGov = semCredenciaisGov && (bearerToken == null || bearerToken.isBlank());
+
+        if (semCredenciaisGov) {
             try {
                 return consultarNaBrasilApi(cnpj);
             } catch (Exception brasilError) {
-                throw new BusinessRuleException("Nao foi possivel consultar o CNPJ agora. Tente novamente.");
+                log.warn("Falha na BrasilAPI para CNPJ {}: {}", cnpj, brasilError.getMessage());
+                try {
+                    return consultarNoGovBr(cnpj);
+                } catch (Exception govError) {
+                    throw new BusinessRuleException("Nao foi possivel consultar o CNPJ agora. Tente novamente.");
+                }
+            }
+        } else {
+            try {
+                return consultarNoGovBr(cnpj);
+            } catch (Exception govError) {
+                log.warn("Falha na API gov.br para CNPJ {}: {}", cnpj, govError.getMessage());
+                try {
+                    return consultarNaBrasilApi(cnpj);
+                } catch (Exception brasilError) {
+                    throw new BusinessRuleException("Nao foi possivel consultar o CNPJ agora. Tente novamente.");
+                }
             }
         }
+    }
+
+    private void configurarTimeouts() {
+        if (restTemplate.getRequestFactory() instanceof SimpleClientHttpRequestFactory factory) {
+            factory.setConnectTimeout(connectTimeoutMs);
+            factory.setReadTimeout(readTimeoutMs);
+            return;
+        }
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(connectTimeoutMs);
+        factory.setReadTimeout(readTimeoutMs);
+        restTemplate.setRequestFactory(factory);
     }
 
     private RegimeCnpjResponseDTO consultarNoGovBr(String cnpj) {

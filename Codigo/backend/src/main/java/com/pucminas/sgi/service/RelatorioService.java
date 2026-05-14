@@ -1,5 +1,7 @@
 package com.pucminas.sgi.service;
 
+import com.pucminas.sgi.dto.response.AgingReportDTO;
+import com.pucminas.sgi.dto.response.EfetividadeCobrancaDTO;
 import com.pucminas.sgi.dto.response.RankingDevedoresDTO;
 import com.pucminas.sgi.dto.response.RelatorioInadimplentesDTO;
 import com.pucminas.sgi.dto.response.ResumoFinanceiroDTO;
@@ -25,10 +27,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.time.temporal.ChronoUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -118,6 +122,116 @@ public class RelatorioService {
         return RankingDevedoresDTO.builder()
                 .limite(limite > 0 ? limite : 10)
                 .ranking(itensRanking)
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public AgingReportDTO gerarAgingReport() {
+        LocalDate hoje = LocalDate.now();
+        List<Divida> dividas = dividaRepository.findByStatusDividaIn(
+                List.of(StatusDivida.EM_ABERTO, StatusDivida.PARCIAL, StatusDivida.VENCIDA)
+        ).stream()
+                .filter(d -> d.getValorDevedor() != null && d.getValorDevedor().compareTo(BigDecimal.ZERO) > 0)
+                .filter(d -> !d.getVencimento().isAfter(hoje))
+                .toList();
+
+        BigDecimal valor0a30 = BigDecimal.ZERO;
+        BigDecimal valor31a60 = BigDecimal.ZERO;
+        BigDecimal valor61a90 = BigDecimal.ZERO;
+        BigDecimal valorMais90 = BigDecimal.ZERO;
+        int qtd0a30 = 0;
+        int qtd31a60 = 0;
+        int qtd61a90 = 0;
+        int qtdMais90 = 0;
+
+        for (Divida d : dividas) {
+            int diasAtraso = (int) ChronoUnit.DAYS.between(d.getVencimento(), hoje);
+            if (diasAtraso <= 30) {
+                qtd0a30++;
+                valor0a30 = valor0a30.add(d.getValorDevedor());
+            } else if (diasAtraso <= 60) {
+                qtd31a60++;
+                valor31a60 = valor31a60.add(d.getValorDevedor());
+            } else if (diasAtraso <= 90) {
+                qtd61a90++;
+                valor61a90 = valor61a90.add(d.getValorDevedor());
+            } else {
+                qtdMais90++;
+                valorMais90 = valorMais90.add(d.getValorDevedor());
+            }
+        }
+
+        List<AgingReportDTO.FaixaAgingDTO> faixas = List.of(
+                AgingReportDTO.FaixaAgingDTO.builder()
+                        .faixa("0-30")
+                        .quantidade(qtd0a30)
+                        .valor(centavosParaReais(valor0a30))
+                        .build(),
+                AgingReportDTO.FaixaAgingDTO.builder()
+                        .faixa("31-60")
+                        .quantidade(qtd31a60)
+                        .valor(centavosParaReais(valor31a60))
+                        .build(),
+                AgingReportDTO.FaixaAgingDTO.builder()
+                        .faixa("61-90")
+                        .quantidade(qtd61a90)
+                        .valor(centavosParaReais(valor61a90))
+                        .build(),
+                AgingReportDTO.FaixaAgingDTO.builder()
+                        .faixa("+90")
+                        .quantidade(qtdMais90)
+                        .valor(centavosParaReais(valorMais90))
+                        .build()
+        );
+
+        BigDecimal valorTotal = valor0a30.add(valor31a60).add(valor61a90).add(valorMais90);
+        return AgingReportDTO.builder()
+                .totalDividas(dividas.size())
+                .valorTotal(centavosParaReais(valorTotal))
+                .faixas(faixas)
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public EfetividadeCobrancaDTO gerarEfetividadeCobranca(Integer ano, Integer mes) {
+        LocalDate referencia = LocalDate.now();
+        int anoRef = (ano != null && ano > 2000) ? ano : referencia.getYear();
+        int mesRef = (mes != null && mes >= 1 && mes <= 12) ? mes : referencia.getMonthValue();
+
+        LocalDate inicioData = LocalDate.of(anoRef, mesRef, 1);
+        LocalDate fimData = inicioData.withDayOfMonth(inicioData.lengthOfMonth());
+        LocalDateTime inicio = inicioData.atStartOfDay();
+        LocalDateTime fim = fimData.plusDays(1).atStartOfDay();
+
+        List<NotificacaoEmail> cobrancas = notificacaoEmailRepository.findByCriadoEmBetween(inicio, fim).stream()
+                .filter(n -> n.getTipo() == com.pucminas.sgi.enums.TipoNotificacao.COBRANCA)
+                .toList();
+
+        int totalCobrancas = cobrancas.size();
+        int enviadas = (int) cobrancas.stream().filter(n -> n.getStatusEnvio() == com.pucminas.sgi.enums.StatusEnvio.ENVIADO).count();
+        int falhas = (int) cobrancas.stream().filter(n -> n.getStatusEnvio() == com.pucminas.sgi.enums.StatusEnvio.FALHOU).count();
+
+        List<Pagamento> pagamentos = pagamentoRepository.findByDataPagamentoBetween(inicioData, fimData);
+        int pagamentosRecebidos = pagamentos.size();
+        BigDecimal valorRecebidoCentavos = pagamentos.stream()
+                .map(Pagamento::getValorPago)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal taxaEfetividade = totalCobrancas == 0
+                ? BigDecimal.ZERO
+                : BigDecimal.valueOf(enviadas)
+                .multiply(BigDecimal.valueOf(100))
+                .divide(BigDecimal.valueOf(totalCobrancas), 2, RoundingMode.HALF_UP);
+
+        return EfetividadeCobrancaDTO.builder()
+                .ano(anoRef)
+                .mes(mesRef)
+                .totalCobrancas(totalCobrancas)
+                .cobrancasEnviadas(enviadas)
+                .cobrancasComFalha(falhas)
+                .pagamentosRecebidos(pagamentosRecebidos)
+                .valorRecebidoTotal(centavosParaReais(valorRecebidoCentavos))
+                .taxaEfetividade(taxaEfetividade)
                 .build();
     }
 
@@ -224,6 +338,7 @@ public class RelatorioService {
                         .nome(c.getNome())
                         .cpfCnpj(c.getCpfCnpj())
                         .telefone(c.getTelefone())
+                        .celular(c.getCelular())
                         .email(c.getEmail())
                         .status(c.getStatusCliente().name())
                         .saldoDevedorTotal(centavosParaReais(c.getSaldoDevedor()))

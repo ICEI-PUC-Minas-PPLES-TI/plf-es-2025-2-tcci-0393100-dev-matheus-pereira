@@ -1,6 +1,8 @@
 package com.pucminas.sgi.controller;
 
 import com.pucminas.sgi.dto.response.ExtratoClienteDTO;
+import com.pucminas.sgi.dto.response.AgingReportDTO;
+import com.pucminas.sgi.dto.response.EfetividadeCobrancaDTO;
 import com.pucminas.sgi.dto.response.RankingDevedoresDTO;
 import com.pucminas.sgi.dto.response.RelatorioInadimplentesDTO;
 import com.pucminas.sgi.dto.response.ResumoFinanceiroDTO;
@@ -84,6 +86,20 @@ public class RelatorioController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate periodoInicio,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate periodoFim) {
         return ResponseEntity.ok(relatorioService.gerarResumoFinanceiro(periodoInicio, periodoFim));
+    }
+
+    @GetMapping("/aging")
+    @Operation(summary = "Aging report por faixa de atraso (0-30, 31-60, 61-90, +90)")
+    public ResponseEntity<AgingReportDTO> aging() {
+        return ResponseEntity.ok(relatorioService.gerarAgingReport());
+    }
+
+    @GetMapping("/efetividade-cobranca")
+    @Operation(summary = "Efetividade de cobrança por mês (envios x pagamentos)")
+    public ResponseEntity<EfetividadeCobrancaDTO> efetividadeCobranca(
+            @RequestParam(required = false) Integer ano,
+            @RequestParam(required = false) Integer mes) {
+        return ResponseEntity.ok(relatorioService.gerarEfetividadeCobranca(ano, mes));
     }
 
     @GetMapping("/exportar/{tipo}")

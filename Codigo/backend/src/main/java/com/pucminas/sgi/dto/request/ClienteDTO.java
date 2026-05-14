@@ -29,12 +29,14 @@ public class ClienteDTO {
     @JsonAlias("cpf")
     private String cpfCnpj;
 
-    @Email
     @Size(max = 255)
     private String email;
 
     @Size(max = 20)
     private String telefone;
+
+    @Size(max = 20)
+    private String celular;
 
     @Size(max = 500)
     private String endereco;

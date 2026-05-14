@@ -58,7 +58,7 @@ public class ClienteController {
     }
 
     @PatchMapping("/{id}")
-    @Operation(summary = "Atualização parcial do cliente (campos enviados)")
+    @Operation(summary = "Atualização parcial do cliente (campos enviados; com nome+cpfCnpj substitui opcionais)")
     public ResponseEntity<ClienteResponseDTO> atualizarParcial(@PathVariable UUID id, @RequestBody ClienteDTO dto) {
         ClienteResponseDTO response = clienteService.atualizarClientePartial(id, dto);
         return ResponseEntity.ok(response);
@@ -76,8 +76,10 @@ public class ClienteController {
     public ResponseEntity<Page<ClienteResponseDTO>> listar(
             @RequestParam(required = false) String nome,
             @RequestParam(required = false) StatusCliente status,
+            @RequestParam(required = false) StatusCliente statusCliente,
             @PageableDefault(size = 20) Pageable pageable) {
-        Page<ClienteResponseDTO> page = clienteService.listarClientes(nome, status, pageable);
+        StatusCliente filtroStatus = statusCliente != null ? statusCliente : status;
+        Page<ClienteResponseDTO> page = clienteService.listarClientes(nome, filtroStatus, pageable);
         return ResponseEntity.ok(page);
     }
 

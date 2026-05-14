@@ -10,6 +10,7 @@ import com.pucminas.sgi.exception.DuplicateResourceException;
 import com.pucminas.sgi.exception.ResourceNotFoundException;
 import com.pucminas.sgi.repository.ClienteRepository;
 import com.pucminas.sgi.repository.DividaRepository;
+import com.pucminas.sgi.util.TelefoneClienteUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -45,14 +46,16 @@ public class ClienteService {
 
     @Transactional
     public ClienteResponseDTO cadastrarCliente(ClienteDTO dto) {
+        normalizarDto(dto);
         if (clienteRepository.findByCpfCnpj(dto.getCpfCnpj()).isPresent()) {
             throw new DuplicateResourceException("CPF/CNPJ já cadastrado");
         }
         Cliente c = Cliente.builder()
-                .nome(dto.getNome())
+                .nome(dto.getNome().trim())
                 .cpfCnpj(dto.getCpfCnpj())
                 .email(dto.getEmail())
                 .telefone(dto.getTelefone())
+                .celular(dto.getCelular())
                 .endereco(dto.getEndereco())
                 .statusCliente(dto.getStatusCliente() != null ? dto.getStatusCliente() : StatusCliente.ATIVO)
                 .saldoDevedor(dto.getSaldoDevedor() != null ? dto.getSaldoDevedor() : BigDecimal.ZERO)
@@ -66,6 +69,7 @@ public class ClienteService {
 
     @Transactional
     public ClienteResponseDTO atualizarCliente(UUID clienteId, ClienteDTO dto) {
+        normalizarDto(dto);
         Cliente c = clienteRepository.findById(clienteId)
                 .orElseThrow(() -> new ResourceNotFoundException("Cliente", clienteId));
         clienteRepository.findByCpfCnpj(dto.getCpfCnpj()).ifPresent(outro -> {
@@ -73,36 +77,96 @@ public class ClienteService {
                 throw new DuplicateResourceException("CPF/CNPJ já cadastrado para outro cliente");
             }
         });
-        c.setNome(dto.getNome());
+        c.setNome(dto.getNome().trim());
         c.setCpfCnpj(dto.getCpfCnpj());
         c.setEmail(dto.getEmail());
         c.setTelefone(dto.getTelefone());
+        c.setCelular(dto.getCelular());
         c.setEndereco(dto.getEndereco());
         if (dto.getStatusCliente() != null) c.setStatusCliente(dto.getStatusCliente());
         c = clienteRepository.save(c);
         return toResponse(c);
     }
 
-    /** Atualização parcial (PATCH): só altera campos enviados (não nulos). */
+    /** Atualização parcial (PATCH). Com {@code nome} + {@code cpfCnpj} no body, trata como
+     *  salvamento do modal e substitui campos opcionais (omitidos ou vazios viram {@code null}). */
     @Transactional
     public ClienteResponseDTO atualizarClientePartial(UUID clienteId, ClienteDTO dto) {
         Cliente c = clienteRepository.findById(clienteId)
                 .orElseThrow(() -> new ResourceNotFoundException("Cliente", clienteId));
-        if (dto.getNome() != null) c.setNome(dto.getNome());
+
+        if (dto.getNome() != null && dto.getCpfCnpj() != null) {
+            aplicarSalvamentoCompleto(c, clienteId, dto);
+        } else {
+            aplicarPatchParcial(c, clienteId, dto);
+        }
+
+        c = clienteRepository.save(c);
+        return toResponse(c);
+    }
+
+    private void aplicarSalvamentoCompleto(Cliente c, UUID clienteId, ClienteDTO dto) {
+        c.setNome(dto.getNome().trim());
+        String cpfCnpj = TelefoneClienteUtil.apenasDigitos(dto.getCpfCnpj());
+        clienteRepository.findByCpfCnpj(cpfCnpj).ifPresent(outro -> {
+            if (!outro.getClienteId().equals(clienteId)) {
+                throw new DuplicateResourceException("CPF/CNPJ já cadastrado para outro cliente");
+            }
+        });
+        c.setCpfCnpj(cpfCnpj);
+        c.setEmail(TelefoneClienteUtil.normalizarEValidarEmail(dto.getEmail()));
+        c.setTelefone(normalizarTelefoneFixo(dto.getTelefone()));
+        c.setCelular(normalizarCelular(dto.getCelular()));
+        c.setEndereco(normalizarEndereco(dto.getEndereco()));
+        if (dto.getStatusCliente() != null) {
+            c.setStatusCliente(dto.getStatusCliente());
+        }
+    }
+
+    private void aplicarPatchParcial(Cliente c, UUID clienteId, ClienteDTO dto) {
+        if (dto.getNome() != null) c.setNome(dto.getNome().trim());
         if (dto.getCpfCnpj() != null) {
-            clienteRepository.findByCpfCnpj(dto.getCpfCnpj()).ifPresent(outro -> {
+            String cpfCnpj = TelefoneClienteUtil.apenasDigitos(dto.getCpfCnpj());
+            clienteRepository.findByCpfCnpj(cpfCnpj).ifPresent(outro -> {
                 if (!outro.getClienteId().equals(clienteId)) {
                     throw new DuplicateResourceException("CPF/CNPJ já cadastrado para outro cliente");
                 }
             });
-            c.setCpfCnpj(dto.getCpfCnpj());
+            c.setCpfCnpj(cpfCnpj);
         }
-        if (dto.getEmail() != null) c.setEmail(dto.getEmail());
-        if (dto.getTelefone() != null) c.setTelefone(dto.getTelefone());
-        if (dto.getEndereco() != null) c.setEndereco(dto.getEndereco());
+        if (dto.getEmail() != null) {
+            c.setEmail(TelefoneClienteUtil.normalizarEValidarEmail(dto.getEmail()));
+        }
+        if (dto.getTelefone() != null) {
+            c.setTelefone(normalizarTelefoneFixo(dto.getTelefone()));
+        }
+        if (dto.getCelular() != null) {
+            c.setCelular(normalizarCelular(dto.getCelular()));
+        }
+        if (dto.getEndereco() != null) {
+            c.setEndereco(normalizarEndereco(dto.getEndereco()));
+        }
         if (dto.getStatusCliente() != null) c.setStatusCliente(dto.getStatusCliente());
-        c = clienteRepository.save(c);
-        return toResponse(c);
+    }
+
+    private static String normalizarTelefoneFixo(String telefone) {
+        String normalizado = TelefoneClienteUtil.normalizarOpcional(telefone);
+        TelefoneClienteUtil.validarTelefoneFixo(normalizado);
+        return normalizado;
+    }
+
+    private static String normalizarCelular(String celular) {
+        String normalizado = TelefoneClienteUtil.normalizarOpcional(celular);
+        TelefoneClienteUtil.validarCelular(normalizado);
+        return normalizado;
+    }
+
+    private static String normalizarEndereco(String endereco) {
+        if (endereco == null) {
+            return null;
+        }
+        String trimmed = endereco.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     /** Exclusão lógica: marca cliente como INATIVO. */
@@ -185,12 +249,27 @@ public class ClienteService {
                 .cpfCnpj(c.getCpfCnpj())
                 .email(c.getEmail())
                 .telefone(c.getTelefone())
+                .celular(c.getCelular())
                 .endereco(c.getEndereco())
                 .statusCliente(c.getStatusCliente())
                 .saldoDevedor(centavosParaReais(c.getSaldoDevedor()))
                 .criadoEm(c.getCriadoEm())
                 .atualizadoEm(c.getAtualizadoEm())
                 .build();
+    }
+
+    private static void normalizarDto(ClienteDTO dto) {
+        if (dto.getCpfCnpj() != null) {
+            dto.setCpfCnpj(TelefoneClienteUtil.apenasDigitos(dto.getCpfCnpj()));
+        }
+        dto.setEmail(TelefoneClienteUtil.normalizarEValidarEmail(dto.getEmail()));
+        dto.setTelefone(TelefoneClienteUtil.normalizarOpcional(dto.getTelefone()));
+        dto.setCelular(TelefoneClienteUtil.normalizarOpcional(dto.getCelular()));
+        if (dto.getEndereco() != null) {
+            String endereco = dto.getEndereco().trim();
+            dto.setEndereco(endereco.isEmpty() ? null : endereco);
+        }
+        TelefoneClienteUtil.validarContatos(dto.getTelefone(), dto.getCelular());
     }
 
     private static BigDecimal centavosParaReais(BigDecimal centavos) {
