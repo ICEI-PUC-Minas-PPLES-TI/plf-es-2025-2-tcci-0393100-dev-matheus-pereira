@@ -1,34 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api, isMockEnabled, normalizeListResponse } from '@/lib/api'
-import { normalizeInadimplenciaFromApi } from '@/lib/apiNormalizers'
+import { normalizeInadimplenciaFromApi, normalizeResumoRelatorioFromApi } from '@/lib/apiNormalizers'
 import { DASHBOARD_INVALIDATE_EVENT } from '@/lib/dashboardRefresh'
-import type { Inadimplencia, ResumoRelatorio, ResumoFinanceiro } from '@/types/api'
+import type { Inadimplencia, ResumoRelatorio } from '@/types/api'
 import { DonutChart } from '@/components/DonutChart'
-
-/** Extrai totalEmAberto e totalRecebido do resumo (resumo ou resumo-financeiro). Valores em reais. */
-function normalizarDadosChart(
-  resumo: ResumoRelatorio | ResumoFinanceiro | null,
-  fallbackResumo: ResumoRelatorio | null
-): { totalEmAberto: number; totalRecebido: number } {
-  const r = resumo ?? fallbackResumo
-  if (!r) return { totalEmAberto: 0, totalRecebido: 0 }
-  const totalEmAberto = Number(r.totalEmAberto) || 0
-  const totalRecebido =
-    'totalRecebido' in r ? Number((r as ResumoFinanceiro).totalRecebido) || 0 : Number((r as ResumoRelatorio).totalPago) || 0
-  return { totalEmAberto, totalRecebido }
-}
-
-/** Retorna periodoInicio e periodoFim em ISO (yyyy-MM-dd) para os últimos N dias */
-function periodoParaDias(dias: number): { periodoInicio: string; periodoFim: string } {
-  const fim = new Date()
-  const inicio = new Date()
-  inicio.setDate(inicio.getDate() - dias)
-  return {
-    periodoInicio: inicio.toISOString().slice(0, 10),
-    periodoFim: fim.toISOString().slice(0, 10),
-  }
-}
 
 function formatarData(iso: string): string {
   if (!iso) return '—'
@@ -41,11 +17,10 @@ type PeriodoChart = 30 | 60 | 90
 export default function Dashboard() {
   const location = useLocation()
   const navigate = useNavigate()
-  const [erroPermissao, setErroPermissao] = useState<string | null>(null)
   const [resumo, setResumo] = useState<ResumoRelatorio | null>(null)
   const [loading, setLoading] = useState(true)
   const [periodoChart, setPeriodoChart] = useState<PeriodoChart>(30)
-  const [resumoChart, setResumoChart] = useState<ResumoRelatorio | ResumoFinanceiro | null>(null)
+  const [resumoChart, setResumoChart] = useState<ResumoRelatorio | null>(null)
   const [loadingChart, setLoadingChart] = useState(true)
   const [ultimasAtividades, setUltimasAtividades] = useState<Inadimplencia[]>([])
   const [loadingAtividades, setLoadingAtividades] = useState(true)
@@ -53,32 +28,13 @@ export default function Dashboard() {
   /** Cache-bust para forçar resposta nova do servidor (evita cache do navegador/axios) */
   const cacheBust = () => `_t=${Date.now()}`
 
-  /** Busca dados do gráfico: tenta resumo-financeiro (por período), fallback para resumo?dias= */
-  async function fetchChartData(dias: PeriodoChart, suffix: string): Promise<ResumoRelatorio | ResumoFinanceiro | null> {
-    const { periodoInicio, periodoFim } = periodoParaDias(dias)
-    if (!isMockEnabled()) {
-      try {
-        const r = await api.get<ResumoFinanceiro>(
-          `/api/relatorios/resumo-financeiro?periodoInicio=${periodoInicio}&periodoFim=${periodoFim}&${suffix}`
-        )
-        const d = r.data
-        if (d && (d.totalEmAberto != null || d.totalRecebido != null))
-          return { totalEmAberto: Number(d.totalEmAberto) || 0, totalRecebido: Number(d.totalRecebido) || 0, periodoInicio, periodoFim }
-      } catch {
-        /* fallback para resumo */
-      }
-    }
-    const r = await api.get<ResumoRelatorio>(`/api/relatorios/resumo?dias=${dias}&${suffix}`)
-    return r.data
-  }
-
   /** Refetch de todos os dados do dashboard (resumo, gráfico, atividades) */
   const refetchDashboard = useCallback((diasChart: PeriodoChart) => {
     setLoading(true)
     setLoadingChart(true)
     setLoadingAtividades(true)
-    api.get<ResumoRelatorio>(`/api/relatorios/resumo?${cacheBust()}`).then((r) => setResumo(r.data)).catch(() => setResumo(null)).finally(() => setLoading(false))
-    fetchChartData(diasChart, cacheBust()).then(setResumoChart).catch(() => setResumoChart(null)).finally(() => setLoadingChart(false))
+    api.get<ResumoRelatorio>(`/api/relatorios/resumo?${cacheBust()}`).then((r) => setResumo(normalizeResumoRelatorioFromApi(r.data))).catch(() => setResumo(null)).finally(() => setLoading(false))
+    api.get<ResumoRelatorio>(`/api/relatorios/resumo?dias=${diasChart}&${cacheBust()}`).then((r) => setResumoChart(normalizeResumoRelatorioFromApi(r.data))).catch(() => setResumoChart(null)).finally(() => setLoadingChart(false))
     api.get(`/api/inadimplentes?${cacheBust()}`, { params: { paginado: false } })
       .then((r) => {
         const raw = normalizeListResponse<Record<string, unknown>>(r.data)
@@ -100,8 +56,8 @@ export default function Dashboard() {
     setLoading(true)
     setLoadingChart(true)
     setLoadingAtividades(true)
-    api.get<ResumoRelatorio>(`/api/relatorios/resumo?${t}`).then((r) => setResumo(r.data)).catch(() => setResumo(null)).finally(() => setLoading(false))
-    fetchChartData(periodoChart, t).then(setResumoChart).catch(() => setResumoChart(null)).finally(() => setLoadingChart(false))
+    api.get<ResumoRelatorio>(`/api/relatorios/resumo?${t}`).then((r) => setResumo(normalizeResumoRelatorioFromApi(r.data))).catch(() => setResumo(null)).finally(() => setLoading(false))
+    api.get<ResumoRelatorio>(`/api/relatorios/resumo?dias=${periodoChart}&${t}`).then((r) => setResumoChart(normalizeResumoRelatorioFromApi(r.data))).catch(() => setResumoChart(null)).finally(() => setLoadingChart(false))
     api.get(`/api/inadimplentes?${t}`, { params: { paginado: false } })
       .then((r) => {
         const raw = normalizeListResponse<Record<string, unknown>>(r.data)
@@ -127,19 +83,6 @@ export default function Dashboard() {
     return () => window.removeEventListener(DASHBOARD_INVALIDATE_EVENT, handler)
   }, [location.pathname, periodoChart, refetchDashboard])
 
-  useEffect(() => {
-    const state = location.state as { erroPermissao?: string } | null
-    if (!state?.erroPermissao) return
-    setErroPermissao(state.erroPermissao)
-    navigate(location.pathname, { replace: true, state: null })
-  }, [location.pathname, location.state, navigate])
-
-  useEffect(() => {
-    if (!erroPermissao) return
-    const t = setTimeout(() => setErroPermissao(null), 3500)
-    return () => clearTimeout(t)
-  }, [erroPermissao])
-
   /** Ao voltar para a aba (ex.: fez ação em outra aba), refaz o fetch para não exibir dados antigos */
   useEffect(() => {
     if (location.pathname !== '/dashboard') return
@@ -152,7 +95,6 @@ export default function Dashboard() {
 
   const totalClientes = resumo?.totalClientes ?? 0
   const totalInadimplentes = resumo?.totalDividas ?? 0
-  /** API retorna totalEmAberto em reais */
   const valorEmAberto = resumo?.totalEmAberto ?? 0
 
   return (
@@ -172,7 +114,6 @@ export default function Dashboard() {
           {loading ? 'Atualizando…' : 'Atualizar'}
         </button>
       </div>
-      {erroPermissao && <p className="toast toast--erro">{erroPermissao}</p>}
 
       <div className="dashboard-cards">
         <div className="dashboard-card">
@@ -242,8 +183,8 @@ export default function Dashboard() {
           ) : (
             <div className="dashboard-chart__donut">
               <DonutChart
-                totalEmAberto={normalizarDadosChart(resumoChart, resumo).totalEmAberto}
-                totalPago={normalizarDadosChart(resumoChart, resumo).totalRecebido}
+                totalEmAberto={resumoChart?.totalEmAberto ?? 0}
+                totalPago={resumoChart?.totalPago ?? 0}
               />
             </div>
           )}

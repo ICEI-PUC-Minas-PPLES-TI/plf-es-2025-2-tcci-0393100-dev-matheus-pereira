@@ -7,6 +7,7 @@ import * as api from "@/lib/api";
 vi.mock("@/lib/api", () => ({
   isMockEnabled: vi.fn(),
   AUTH_TOKEN_KEY: "sgi_token",
+  USER_PROFILE_KEY: "sgi_user_profile",
 }));
 
 function renderWithRouter(initialEntries: string[] = ["/"]) {

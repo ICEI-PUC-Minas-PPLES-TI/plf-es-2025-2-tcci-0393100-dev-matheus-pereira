@@ -6,6 +6,7 @@ import {
   normalizeInadimplenciaToApi,
   normalizeRankingFromApi,
   normalizeInadimplenciaPeriodoFromApi,
+  normalizeResumoRelatorioFromApi,
 } from "@/lib/apiNormalizers";
 
 describe("normalizeClienteFromApi", () => {
@@ -157,5 +158,36 @@ describe("normalizeInadimplenciaPeriodoFromApi", () => {
     expect(r!.dataFim).toBe("2025-01-31");
     expect(r!.totalClientes).toBe(10);
     expect(r!.valorTotal).toBe(50000);
+  });
+});
+
+describe("normalizeResumoRelatorioFromApi", () => {
+  it("retorna null quando data inválido", () => {
+    expect(normalizeResumoRelatorioFromApi(null)).toBeNull();
+  });
+
+  it("mantém valores monetários em reais (sem dividir por 100)", () => {
+    const r = normalizeResumoRelatorioFromApi({
+      totalClientes: 195,
+      totalDividas: 1,
+      totalEmAberto: 2500,
+      totalPago: 16.6,
+    });
+    expect(r).toEqual({
+      totalClientes: 195,
+      totalDividas: 1,
+      totalEmAberto: 2500,
+      totalPago: 16.6,
+    });
+  });
+
+  it("aceita totalRecebido como alias de totalPago", () => {
+    const r = normalizeResumoRelatorioFromApi({
+      totalClientes: 1,
+      totalDividas: 1,
+      totalEmAberto: 100,
+      totalRecebido: 50,
+    });
+    expect(r?.totalPago).toBe(50);
   });
 });

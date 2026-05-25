@@ -1,6 +1,9 @@
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts'
 
-const COLORS = ['#9333ea', '#64748b'] // Roxo vibrante e cinza visível (recebido)
+const COLORS: Record<string, string> = {
+  'A receber': '#9333ea',
+  Recebido: '#64748b',
+}
 
 export type DonutChartItem = { name: string; value: number }
 
@@ -12,14 +15,17 @@ type DonutChartProps = {
 }
 
 export function DonutChart({ totalEmAberto, totalPago }: DonutChartProps) {
+  const receber = Math.max(0, totalEmAberto)
+  const pago = Math.max(0, totalPago)
+
   const data: DonutChartItem[] = [
-    { name: 'A receber', value: Math.max(0, totalEmAberto) },
-    { name: 'Recebido', value: Math.max(0, totalPago) },
+    { name: 'A receber', value: receber },
+    { name: 'Recebido', value: pago },
   ].filter((d) => d.value > 0)
 
-  // Se não houver dados, mostrar um anel vazio com um valor mínimo para exibir o círculo
-  const displayData = data.length > 0 ? data : [{ name: 'A receber', value: 1 }]
-  const valorCentral = totalEmAberto
+  const temDados = data.length > 0
+  const displayData = temDados ? data : [{ name: 'A receber', value: 1 }]
+  const valorCentral = receber
 
   return (
     <div className="donut-chart">
@@ -38,10 +44,10 @@ export function DonutChart({ totalEmAberto, totalPago }: DonutChartProps) {
               animationBegin={0}
               animationDuration={1500}
             >
-              {displayData.map((_, index) => (
+              {displayData.map((entry) => (
                 <Cell
-                  key={`cell-${index}`}
-                  fill={data.length > 0 ? COLORS[index % COLORS.length] : 'var(--chart-stroke-bg)'}
+                  key={`cell-${entry.name}`}
+                  fill={temDados ? COLORS[entry.name] : 'var(--chart-stroke-bg)'}
                   className="donut-chart__cell"
                 />
               ))}

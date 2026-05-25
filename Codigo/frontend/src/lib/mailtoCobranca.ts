@@ -20,6 +20,15 @@ function protocolo(id: string | number | undefined, vencimento: string): string 
 
 const MAX_BODY_LENGTH = 1500;
 
+const PIX_CODE =
+  "00020126360014br.gov.bcb.pix0114+55319982313435204000053039865802BR5922MCA SERVICOS CONTABEIS6015Conceicao do Ma610935860-000622905250JUH02173447164451724462563048D28";
+const PIX_INFO = {
+  beneficiario: "MCA Serviços Contábeis",
+  cidade: "Conceição do Mato Dentro",
+  chave: "+55 31 99823-1343",
+  banco: "Sicoob",
+};
+
 /** Base do Gmail para abrir o redator (conta u/2). */
 const GMAIL_COMPOSE_BASE = "https://mail.google.com/mail/u/2/?view=cm&fs=1";
 
@@ -57,16 +66,77 @@ function getCobrancaParams(
   return { to, subjectEncoded, bodyEncoded };
 }
 
+/** Texto plano da cobrança (e-mail, WhatsApp, clipboard). */
+export function buildCobrancaMensagemTexto(
+  item: Inadimplencia,
+  nomeCliente: string,
+  stripePaymentLinkUrl?: string | null
+): string {
+  const mesAno = formatarMesAno(item.vencimento);
+  const valor = (item.valor ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const juros = (item.juros ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const vencimento = formatarData(item.vencimento);
+  const prot = protocolo(item.id, item.vencimento);
+  const descricao = (item.descricao || "").trim();
+  const linkPagamento =
+    typeof stripePaymentLinkUrl === "string" && /^https:\/\//i.test(stripePaymentLinkUrl.trim())
+      ? stripePaymentLinkUrl.trim()
+      : null;
+
+  const linhas = [
+    "Prezado(a),",
+    "",
+    `Segue cobrança referente ao débito em aberto (${mesAno}).`,
+    "",
+    `Cliente: ${nomeCliente}`,
+    `Protocolo: ${prot}`,
+    `Vencimento: ${vencimento}`,
+    `Juros: ${juros}`,
+    `Valor: ${valor}`,
+    ...(descricao ? [`Descrição: ${descricao}`] : []),
+    ...(linkPagamento ? ["", "Pagamento online (Boleto/Pix):", linkPagamento] : []),
+    "",
+    `Pagamento via Pix (${PIX_INFO.banco}):`,
+    `Chave: ${PIX_INFO.chave}`,
+    "Pix Copia e Cola:",
+    PIX_CODE,
+    "",
+    "Atenciosamente,",
+    "Equipe Contabilidade São Judas Tadeu",
+  ];
+  return linhas.join("\n");
+}
+
+/** Normaliza telefone brasileiro para wa.me (apenas dígitos, com DDI 55). */
+export function normalizeTelefoneParaWhatsApp(telefone?: string | null): string {
+  const digits = (telefone || "").replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("55") && digits.length >= 12) return digits;
+  const local = digits.replace(/^0+/, "");
+  if (local.length === 10 || local.length === 11) return `55${local}`;
+  if (local.length >= 12) return local;
+  return "";
+}
+
+/** URL do WhatsApp com mensagem de cobrança pré-preenchida. */
+export function buildWhatsAppCobrancaUrl(
+  item: Inadimplencia,
+  nomeCliente: string,
+  telefoneCliente?: string | null,
+  stripePaymentLinkUrl?: string | null
+): string {
+  const phone = normalizeTelefoneParaWhatsApp(telefoneCliente);
+  const text = encodeURIComponent(buildCobrancaMensagemTexto(item, nomeCliente, stripePaymentLinkUrl));
+  if (phone) return `https://wa.me/${phone}?text=${text}`;
+  return `https://api.whatsapp.com/send?text=${text}`;
+}
+
+export function openWhatsAppCobranca(url: string): void {
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
 const COR_PRINCIPAL = "#A43F9B";
 const COR_VENCIMENTO = "#dc2626";
-const PIX_CODE =
-  "00020126360014br.gov.bcb.pix0114+55319982313435204000053039865802BR5922MCA SERVICOS CONTABEIS6015Conceicao do Ma610935860-000622905250JUH02173447164451724462563048D28";
-const PIX_INFO = {
-  beneficiario: "MCA Serviços Contábeis",
-  cidade: "Conceição do Mato Dentro",
-  chave: "+55 31 99823-1343",
-  banco: "Sicoob",
-};
 
 function buildPixQrCodeImageUrl(code: string, size = 220): string {
   return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(code)}&bgcolor=ffffff&color=1a1a2e&qzone=1`;
@@ -155,12 +225,7 @@ export async function copyCobrancaEmailToClipboard(
   stripePaymentLinkUrl?: string | null
 ): Promise<boolean> {
   const html = buildCobrancaEmailHtml(item, nomeCliente, stripePaymentLinkUrl);
-  const linkPagamento =
-    typeof stripePaymentLinkUrl === "string" && /^https:\/\//i.test(stripePaymentLinkUrl.trim())
-      ? stripePaymentLinkUrl.trim()
-      : null;
-  const plain =
-    `Prezado(a),\n\nSegue cobrança referente ao débito em aberto.\n\nCliente: ${nomeCliente}\nProtocolo: ${protocolo(item.id, item.vencimento)}\nVencimento: ${formatarData(item.vencimento)}\nJuros: ${(item.juros ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}\nValor: ${(item.valor ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}${linkPagamento ? `\n\nPagamento online (Boleto/Pix):\n${linkPagamento}` : ""}\n\nPagamento via Pix (${PIX_INFO.banco}):\nChave: ${PIX_INFO.chave}\nPix Copia e Cola:\n${PIX_CODE}\n\nAtenciosamente,\nEquipe Contabilidade São Judas Tadeu`;
+  const plain = buildCobrancaMensagemTexto(item, nomeCliente, stripePaymentLinkUrl);
   try {
     await navigator.clipboard.write([
       new ClipboardItem({

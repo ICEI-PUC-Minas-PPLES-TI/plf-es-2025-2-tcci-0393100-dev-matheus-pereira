@@ -1,16 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useNavigate } from "react-router-dom";
 import { api, getApiErrorMessage, isMockEnabled, normalizeListResponse } from "@/lib/api";
 import { parseValorReais } from "@/lib/valorBrasil";
 import {
   normalizeClienteFromApi,
   normalizeInadimplenciaFromApi,
   normalizeInadimplenciaToApi,
-  normalizePagamentoInadimplenciaFromApi,
 } from "@/lib/apiNormalizers";
 import { invalidateDashboard } from "@/lib/dashboardRefresh";
-import { buildGmailComposeUrl, copyCobrancaEmailToClipboard, openGmailCompose } from "@/lib/mailtoCobranca";
-import type { Cliente, Inadimplencia, PagamentoInadimplencia } from "@/types/api";
+import {
+  diasEmAtraso,
+  formatCpfCnpj,
+  isInadimplenciaEmAberto,
+} from "@/lib/inadimplentesUtils";
+import type { Cliente, Inadimplencia } from "@/types/api";
 
 type ServicoResumo = {
   servicoId: string;
@@ -20,61 +24,17 @@ type ServicoResumo = {
   ativo?: boolean | null;
 };
 
-function ordenarPagamentosPorData(pagamentos: PagamentoInadimplencia[]): PagamentoInadimplencia[] {
-  return [...pagamentos].sort((a, b) => {
-    const da = (a.dataPagamento || "").split("T")[0];
-    const db = (b.dataPagamento || "").split("T")[0];
-    const c = da.localeCompare(db);
-    if (c !== 0) return c;
-    return (a.criadoEm ?? "").localeCompare(b.criadoEm ?? "");
-  });
-}
-
-function formatarData(iso: string): string {
-  if (!iso) return "—";
-  const [y, m, d] = iso.split("T")[0].split("-");
-  return `${d}/${m}/${y}`;
-}
-
-/** Formata ISO como mês/ano (ex.: 2019-02-28 → 02/2019) */
-function formatarMesAno(iso: string): string {
-  if (!iso) return "—";
-  const [y, m] = iso.split("T")[0].split("-");
-  return `${m}/${y}`;
-}
-
-function diasEmAtraso(vencimento: string): number {
-  const v = new Date(vencimento.split("T")[0]);
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-  v.setHours(0, 0, 0, 0);
-  const diff = Math.floor((hoje.getTime() - v.getTime()) / (1000 * 60 * 60 * 24));
-  return diff > 0 ? diff : 0;
-}
-
-/** Formata CPF (11 dígitos) ou CNPJ (14 dígitos) com máscara padrão */
-function formatCpfCnpj(cpf: string | undefined): string {
-  if (!cpf) return "";
-  const n = cpf.replace(/\D/g, "");
-  if (n.length === 11) return n.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
-  if (n.length === 14) return n.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
-  return cpf;
-}
-
-
 export default function WebInadimplentes() {
+  const navigate = useNavigate();
   const [itens, setItens] = useState<Inadimplencia[]>([]);
   const [erro, setErro] = useState<string | null>(null);
   const [mensagemSucesso, setMensagemSucesso] = useState<string | null>(null);
-  const [toastEmailFormatado, setToastEmailFormatado] = useState(false);
   const [loading, setLoading] = useState(false);
   const [ordenarPor, setOrdenarPor] = useState<"cliente" | "valor" | "dias" | null>(null);
   const [ordemAsc, setOrdemAsc] = useState(true);
   const [pagina, setPagina] = useState(1);
   const itensPorPagina = 10;
   const [modalRegistroAberto, setModalRegistroAberto] = useState(false);
-  const [detalheClienteId, setDetalheClienteId] = useState<string | null>(null);
-  const [inadimplenciaParaCancelar, setInadimplenciaParaCancelar] = useState<{ item: Inadimplencia; nomeCliente: string } | null>(null);
   const [clientes, setClientes] = useState<Pick<Cliente, "id" | "nome" | "cpf" | "email">[]>([]);
   const [clienteBusca, setClienteBusca] = useState("");
   const [clienteDropdownAberto, setClienteDropdownAberto] = useState(false);
@@ -85,26 +45,6 @@ export default function WebInadimplentes() {
   /** IDs dos serviços selecionados no modal "Adicionar por serviços" (para somar ao valor) */
   const [servicosSelecionadosParaValor, setServicosSelecionadosParaValor] = useState<string[]>([]);
   const [servicosBuscaValor, setServicosBuscaValor] = useState("");
-  const [modalPagamentoParcial, setModalPagamentoParcial] = useState<{
-    inadimplencia: Inadimplencia;
-    nomeCliente: string;
-    valorDigitado: string;
-    dataPagamento: string;
-    metodoPagamento: string;
-  } | null>(null);
-  const [modalConfirmacaoPagamento, setModalConfirmacaoPagamento] = useState<{
-    inadimplencia: Inadimplencia;
-    nomeCliente: string;
-    descontoDigitado: string;
-    metodoPagamento: string;
-    observacao: string;
-    dataPagamento: string;
-  } | null>(null);
-  const [loadingConfirmacaoPagamento, setLoadingConfirmacaoPagamento] = useState(false);
-  const [linhaDetalheAbertaId, setLinhaDetalheAbertaId] = useState<string | null>(null);
-  /** Fallback quando o item da listagem ainda não traz `pagamentos` embutidos */
-  const [historicoPagamentosParciais, setHistoricoPagamentosParciais] = useState<Record<string, PagamentoInadimplencia[]>>({});
-  const [loadingHistoricoPagamentosParciais, setLoadingHistoricoPagamentosParciais] = useState<Record<string, boolean>>({});
   const [modalAjustarJurosAberto, setModalAjustarJurosAberto] = useState(false);
   const [jurosGlobal, setJurosGlobal] = useState<{ multa: string; juros: string }>({ multa: "0,33", juros: "2" });
   const [loadingJurosGlobal, setLoadingJurosGlobal] = useState(false);
@@ -312,10 +252,7 @@ export default function WebInadimplentes() {
   }, [mensagemSucesso]);
 
   /** Inclui EmAberto, PARCIAL, Acordo e equivalentes — exclui só Pago/Quitada e Cancelado/Cancelada */
-  const emAberto = itens.filter((i) => {
-    const s = String(i.status ?? "EmAberto").toLowerCase();
-    return s !== "pago" && s !== "quitada" && s !== "cancelado" && s !== "cancelada";
-  });
+  const emAberto = itens.filter(isInadimplenciaEmAberto);
 
   /** Agrupa por cliente: soma valor, vencimento mais antigo, maior dias em atraso */
   const agrupadosPorCliente = (() => {
@@ -371,20 +308,6 @@ export default function WebInadimplentes() {
       setOrdenarPor(campo);
       setOrdemAsc(true);
     }
-  }
-
-  function saldoDevedorItem(i: Inadimplencia): number {
-    const totalDaApi = i.valor ?? i.valorDevedor ?? 0;
-    const juros = i.juros ?? 0;
-    const valorOriginal = i.valorOriginal != null ? i.valorOriginal : totalDaApi > 0 ? Math.max(0, totalDaApi - juros) : 0;
-    return totalDaApi > 0 ? totalDaApi : valorOriginal + juros;
-  }
-
-  function descontoNormalizado(valorDigitado: string, saldoDevedor: number): number {
-    const descontoLido = parseValorReais(valorDigitado);
-    if (!Number.isFinite(descontoLido) || descontoLido <= 0) return 0;
-    if (descontoLido >= saldoDevedor) return saldoDevedor;
-    return descontoLido;
   }
 
   function parsePct(s: string): number {
@@ -448,120 +371,6 @@ export default function WebInadimplentes() {
     }
   }
 
-  async function carregarPagamentosParciais(dividaId: string) {
-    setLoadingHistoricoPagamentosParciais((prev) => ({ ...prev, [dividaId]: true }));
-    try {
-      const res = await api.get(`/api/pagamentos/divida/${dividaId}`);
-      const data = res.data;
-      const raw = Array.isArray(data) ? data : normalizeListResponse<Record<string, unknown>>(data);
-      setHistoricoPagamentosParciais((prev) => ({
-        ...prev,
-        [dividaId]: raw.map((p) => normalizePagamentoInadimplenciaFromApi(p as Record<string, unknown>)),
-      }));
-    } catch {
-      try {
-        const res = await api.get("/api/pagamentos", { params: { dividaId } });
-        const raw = normalizeListResponse<Record<string, unknown>>(res.data);
-        setHistoricoPagamentosParciais((prev) => ({
-          ...prev,
-          [dividaId]: raw.map((p) => normalizePagamentoInadimplenciaFromApi(p)),
-        }));
-      } catch {
-        setHistoricoPagamentosParciais((prev) => ({ ...prev, [dividaId]: [] }));
-      }
-    } finally {
-      setLoadingHistoricoPagamentosParciais((prev) => ({ ...prev, [dividaId]: false }));
-    }
-  }
-
-  async function confirmarPagamentoComModal() {
-    if (!modalConfirmacaoPagamento) return;
-    const i = modalConfirmacaoPagamento.inadimplencia;
-    if (!i.id) {
-      setErro("Não foi possível confirmar: ID da inadimplência ausente.");
-      return;
-    }
-    const saldoDevedor = saldoDevedorItem(i);
-    const desconto = descontoNormalizado(modalConfirmacaoPagamento.descontoDigitado, saldoDevedor);
-    const metodoPagamento = modalConfirmacaoPagamento.metodoPagamento.trim();
-    const observacao = modalConfirmacaoPagamento.observacao.trim();
-    const dataPagamento = modalConfirmacaoPagamento.dataPagamento || new Date().toISOString().slice(0, 10);
-
-    if (!metodoPagamento) {
-      setErro("Método de pagamento é obrigatório.");
-      return;
-    }
-    setLoadingConfirmacaoPagamento(true);
-    setErro(null);
-    try {
-      await api.patch(`/api/inadimplentes/${i.id}`, {
-        status: "Pago",
-        desconto,
-        metodoPagamento,
-        observacao: observacao || undefined,
-        dataPagamento,
-      });
-      setMensagemSucesso("Pagamento confirmado com sucesso.");
-      setModalConfirmacaoPagamento(null);
-      invalidateDashboard();
-      await listar();
-    } catch (e: unknown) {
-      setErro(getApiErrorMessage(e, "Não foi possível confirmar o pagamento. Verifique os dados e tente novamente."));
-    } finally {
-      setLoadingConfirmacaoPagamento(false);
-    }
-  }
-
-  function abrirModalCancelarInadimplencia(item: Inadimplencia, nomeCliente: string) {
-    setInadimplenciaParaCancelar({ item, nomeCliente });
-  }
-
-  async function executarCancelamento() {
-    if (!inadimplenciaParaCancelar || inadimplenciaParaCancelar.item.id == null) return;
-    const id = inadimplenciaParaCancelar.item.id;
-    setInadimplenciaParaCancelar(null);
-    try {
-      setErro(null);
-      const res = await api.delete(`/api/inadimplentes/${id}`);
-      // 204 No Content ou 2xx = sucesso: atualiza a lista na hora
-      if (res?.status === 204 || (res?.status >= 200 && res?.status < 300)) {
-        setItens((prev) => prev.filter((i) => i.id !== id));
-      }
-      setMensagemSucesso("Inadimplência cancelada.");
-      invalidateDashboard();
-      await listar();
-    } catch (e: unknown) {
-      setErro(getApiErrorMessage(e, "Falha ao cancelar inadimplência"));
-    }
-  }
-
-  /** Copia o e-mail formatado (HTML) e abre o Gmail; usuário cola (Ctrl+V) no corpo. */
-  async function enviarEmailCobranca(item: Inadimplencia, nomeCliente: string, emailCliente?: string) {
-    let stripePaymentLinkUrl: string | null = null;
-    if (!isMockEnabled()) {
-      try {
-        const res = await api.post<{ stripePaymentLinkUrl?: string | null }>("/api/notificacoes/enviar-cobranca", {
-          clienteId: item.clienteId,
-          dividaId: item.id ?? undefined,
-          gerarLinkPagamentoStripe: true,
-        });
-        const rawLink = res.data?.stripePaymentLinkUrl;
-        stripePaymentLinkUrl =
-          typeof rawLink === "string" && /^https:\/\//i.test(rawLink.trim()) ? rawLink.trim() : null;
-      } catch (e: unknown) {
-        setErro(getApiErrorMessage(e, "Falha ao gerar cobrança para envio por e-mail."));
-        return;
-      }
-    }
-    const copiou = await copyCobrancaEmailToClipboard(item, nomeCliente, stripePaymentLinkUrl);
-    if (copiou) {
-      setToastEmailFormatado(true);
-      setTimeout(() => setToastEmailFormatado(false), 5000);
-    }
-    const gmailUrl = buildGmailComposeUrl(item, nomeCliente, emailCliente, true);
-    openGmailCompose(gmailUrl);
-  }
-
   return (
     <div className="page-inadimplentes">
       <p className="page-inadimplentes__contexto">Sistema de Gestão de Inadimplentes</p>
@@ -569,11 +378,6 @@ export default function WebInadimplentes() {
       <p className="page-inadimplentes__subtitle">Clientes com pagamentos em atraso</p>
 
       {mensagemSucesso && <p className="toast toast--sucesso">{mensagemSucesso}</p>}
-      {toastEmailFormatado && (
-        <p className="toast toast--sucesso">
-          E-mail formatado copiado. Cole no corpo da mensagem no Gmail (Ctrl+V) para usar o layout.
-        </p>
-      )}
       {erro && <p className="page-inadimplentes__erro">{erro}</p>}
 
       <div className="page-inadimplentes__acao-topo">
@@ -581,7 +385,8 @@ export default function WebInadimplentes() {
           <PlusIcon />
           Registrar inadimplência
         </button>
-        <button type="button" className="btn btn--secondary" onClick={abrirModalAjustarJuros}>
+        <button type="button" className="btn btn--primary" onClick={abrirModalAjustarJuros}>
+          <SlidersIcon />
           Ajustar juros
         </button>
       </div>
@@ -653,7 +458,7 @@ export default function WebInadimplentes() {
                       <button
                         type="button"
                         className="btn btn--secondary btn--small page-inadimplentes__btn-meses"
-                        onClick={() => setDetalheClienteId(d.clienteId)}
+                        onClick={() => navigate(`/inadimplentes/${d.clienteId}/honorarios`)}
                       >
                         <EyeIcon /> Ver honorários
                       </button>
@@ -689,239 +494,7 @@ export default function WebInadimplentes() {
       )}
       </section>
 
-      {detalheClienteId !== null && (() => {
-        const mensalidadesCliente = emAberto
-          .filter((i) => i.clienteId === detalheClienteId)
-          .sort((a, b) => a.vencimento.localeCompare(b.vencimento));
-        const nomeCliente = agrupadosPorCliente.find((c) => c.clienteId === detalheClienteId)?.clienteNome ?? `Cliente #${detalheClienteId}`;
-        const emailCliente = clientes.find((c) => c.id === detalheClienteId)?.email ?? "";
-        const valorTotalLinha = (i: typeof mensalidadesCliente[0]) => {
-          const total = i.valor ?? i.valorDevedor ?? 0;
-          if (total > 0) return total;
-          const orig = i.valorOriginal ?? 0;
-          const j = i.juros ?? 0;
-          return orig + j;
-        };
-        const totalDetalhe = mensalidadesCliente.reduce((s, i) => s + valorTotalLinha(i), 0);
-        return (
-          <div className="modal-overlay" onClick={() => setDetalheClienteId(null)}>
-            <div className="modal modal--detalhe-meses" onClick={(e) => e.stopPropagation()}>
-              <div className="modal__cabecalho">
-                <h2 className="modal__titulo">Meses em aberto — {nomeCliente}</h2>
-                <button type="button" className="modal__fechar" onClick={() => setDetalheClienteId(null)} aria-label="Fechar">
-                  <CloseIcon />
-                </button>
-              </div>
-              <div className="modal__detalhe-meses">
-                <table className="page-inadimplentes__tabela page-inadimplentes__tabela--detalhe">
-                  <thead>
-                    <tr>
-                      <th>Mês/Ano</th>
-                      <th>Vencimento</th>
-                      <th className="page-inadimplentes__cell-num">Valor original</th>
-                      <th className="page-inadimplentes__cell-num">Juros</th>
-                      <th className="page-inadimplentes__cell-num">Valor total</th>
-                      <th className="page-inadimplentes__th-acao">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {mensalidadesCliente.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="page-inadimplentes__vazio">
-                          Nenhum mês em aberto para este cliente.
-                        </td>
-                      </tr>
-                    ) : (
-                      mensalidadesCliente.map((i) => {
-                        const totalDaApi = i.valor ?? i.valorDevedor ?? 0;
-                        const juros = i.juros ?? 0;
-                        const valorOriginal =
-                          i.valorOriginal != null ? i.valorOriginal : totalDaApi > 0 ? Math.max(0, totalDaApi - juros) : 0;
-                        const valorTotal = totalDaApi > 0 ? totalDaApi : valorOriginal + juros;
-                        const key = i.id ?? `${i.vencimento}-${i.valor}`;
-                        const aberta = linhaDetalheAbertaId === String(key);
-                        const pagamentosDoItem = i.pagamentos ?? [];
-                        const pagamentosFallback = i.id ? historicoPagamentosParciais[i.id] : undefined;
-                        const listaPagamentos = ordenarPagamentosPorData(
-                          pagamentosDoItem.length > 0 ? pagamentosDoItem : (pagamentosFallback ?? [])
-                        );
-                        const loadingHist = Boolean(i.id && loadingHistoricoPagamentosParciais[i.id]);
-                        const mostrarLoadingPagamentos =
-                          loadingHist && listaPagamentos.length === 0 && pagamentosDoItem.length === 0;
-                        return (
-                          <>
-                            <tr
-                              key={key}
-                              className="page-inadimplentes__linha-mes"
-                               onClick={async () => {
-                                if (linhaDetalheAbertaId === String(key)) {
-                                  setLinhaDetalheAbertaId(null);
-                                } else {
-                                  setLinhaDetalheAbertaId(String(key));
-                                  if (i.id && (i.pagamentos?.length ?? 0) === 0) {
-                                    await carregarPagamentosParciais(i.id);
-                                  }
-                                }
-                              }}
-                              style={{ cursor: "pointer" }}
-                            >
-                              <td>{formatarMesAno(i.vencimento)}</td>
-                              <td>{formatarData(i.vencimento)}</td>
-                              <td className="page-inadimplentes__cell-num">
-                                {valorOriginal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                              </td>
-                              <td className="page-inadimplentes__cell-num">
-                                {juros.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                              </td>
-                              <td className="page-inadimplentes__cell-num">
-                                {valorTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                              </td>
-                              <td>
-                                <div className="page-inadimplentes__acoes-detalhe">
-                                <button
-                                  type="button"
-                                  className="page-inadimplentes__btn-icone page-inadimplentes__btn-icone--confirmar"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    i.id != null &&
-                                      setModalConfirmacaoPagamento({
-                                        inadimplencia: i,
-                                        nomeCliente,
-                                        descontoDigitado: "",
-                                        metodoPagamento: "",
-                                        observacao: "",
-                                        dataPagamento: new Date().toISOString().slice(0, 10),
-                                      });
-                                  }}
-                                  disabled={i.id == null}
-                                  title="Confirmar pagamento"
-                                  aria-label="Confirmar pagamento"
-                                >
-                                  <CheckIcon />
-                                </button>
-                                <button
-                                  type="button"
-                                  className="page-inadimplentes__btn-icone page-inadimplentes__btn-icone--email"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    enviarEmailCobranca(i, nomeCliente, emailCliente);
-                                  }}
-                                  title="Enviar e-mail de cobrança deste mês (abre cliente de e-mail)"
-                                  aria-label="Enviar e-mail de cobrança"
-                                >
-                                  <EmailSendIcon />
-                                </button>
-                                  <button
-                                    type="button"
-                                    className="page-inadimplentes__btn-icone page-inadimplentes__btn-icone--cancelar"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      abrirModalCancelarInadimplencia(i, nomeCliente);
-                                    }}
-                                    disabled={i.id == null}
-                                    title="Cancelar inadimplência deste mês"
-                                    aria-label="Cancelar inadimplência"
-                                  >
-                                    <CancelIcon />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="page-inadimplentes__btn-icone page-inadimplentes__btn-icone--pagamento"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      i.id != null &&
-                                        setModalPagamentoParcial({
-                                          inadimplencia: i,
-                                          nomeCliente,
-                                          valorDigitado: "",
-                                          dataPagamento: new Date().toISOString().slice(0, 10),
-                                          metodoPagamento: "PIX",
-                                        });
-                                    }}
-                                    disabled={i.id == null || valorTotal <= 0}
-                                    title="Registrar pagamento parcial deste mês"
-                                    aria-label="Registrar pagamento parcial deste mês"
-                                  >
-                                    R$
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                            {aberta && (
-                              <tr className="page-inadimplentes__detalhe-row">
-                                <td colSpan={6}>
-                                  <div className="page-inadimplentes__detalhe">
-                                    <label className="modal__label">Pagamentos</label>
-                                    {!i.id ? (
-                                      <p>Não foi possível carregar o histórico (dívida sem ID).</p>
-                                    ) : mostrarLoadingPagamentos ? (
-                                      <p>Carregando pagamentos...</p>
-                                    ) : listaPagamentos.length === 0 ? (
-                                      <p>Nenhum pagamento registrado.</p>
-                                    ) : (
-                                      <table className="page-inadimplentes__tabela page-inadimplentes__tabela--detalhe">
-                                        <thead>
-                                          <tr>
-                                            <th>Data do pagamento</th>
-                                            <th className="page-inadimplentes__cell-num">Valor</th>
-                                          </tr>
-                                        </thead>
-                                        <tbody>
-                                          {listaPagamentos.map((p) => (
-                                            <tr key={p.pagamentoId ?? `${p.dataPagamento}-${p.valorPago}`}>
-                                              <td>{formatarData(p.dataPagamento)}</td>
-                                              <td className="page-inadimplentes__cell-num">
-                                                {p.valorPago.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                                              </td>
-                                            </tr>
-                                          ))}
-                                        </tbody>
-                                      </table>
-                                    )}
-                                  </div>
-                                </td>
-                              </tr>
-                            )}
-                          </>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-                <p className="modal__total-label">
-                  Total: <strong>{totalDetalhe.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</strong>
-                </p>
-              </div>
-              <div className="modal__botoes">
-                <button type="button" className="btn btn--primary" onClick={() => setDetalheClienteId(null)}>
-                  Fechar
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
 
-      {inadimplenciaParaCancelar && (
-        <div className="modal-overlay" onClick={() => setInadimplenciaParaCancelar(null)}>
-          <div className="modal modal--confirmar-exclusao" onClick={(e) => e.stopPropagation()}>
-            <h2 className="modal__titulo">Apagar inadimplência?</h2>
-            <p className="modal__texto-confirmacao">
-              Tem certeza que deseja apagar a inadimplência do mês{" "}
-              <strong>{formatarMesAno(inadimplenciaParaCancelar.item.vencimento)}</strong> do cliente{" "}
-              <strong>{inadimplenciaParaCancelar.nomeCliente}</strong>? Esta ação não pode ser desfeita.
-            </p>
-            <div className="modal__botoes">
-              <button type="button" className="btn btn--secondary" onClick={() => setInadimplenciaParaCancelar(null)}>
-                Cancelar
-              </button>
-              <button type="button" className="btn btn--danger" onClick={executarCancelamento}>
-                Apagar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {modalAjustarJurosAberto && (
         <div className="modal-overlay" onClick={() => !loadingJurosGlobal && setModalAjustarJurosAberto(false)}>
@@ -976,246 +549,6 @@ export default function WebInadimplentes() {
         </div>
       )}
 
-      {modalConfirmacaoPagamento && (
-        <div className="modal-overlay" onClick={() => !loadingConfirmacaoPagamento && setModalConfirmacaoPagamento(null)}>
-          <div className="modal modal--cadastro modal--pagamento" onClick={(e) => e.stopPropagation()}>
-            <p className="modal__eyebrow">CONFIRMAR PAGAMENTO</p>
-            <h2 className="modal__titulo">{modalConfirmacaoPagamento.nomeCliente}</h2>
-            <p className="modal__texto-confirmacao modal__label--full">
-              Mês: <strong>{formatarMesAno(modalConfirmacaoPagamento.inadimplencia.vencimento)}</strong>{" "}
-              Vencimento: <strong>{formatarData(modalConfirmacaoPagamento.inadimplencia.vencimento)}</strong>
-            </p>
-            <div className="modal__grid">
-              {(() => {
-                const i = modalConfirmacaoPagamento.inadimplencia;
-                const totalDaApi = i.valor ?? i.valorDevedor ?? 0;
-                const juros = i.juros ?? 0;
-                const valorOriginal =
-                  i.valorOriginal != null ? i.valorOriginal : totalDaApi > 0 ? Math.max(0, totalDaApi - juros) : 0;
-                const saldoDevedor = totalDaApi > 0 ? totalDaApi : valorOriginal + juros;
-                const desconto = descontoNormalizado(modalConfirmacaoPagamento.descontoDigitado, saldoDevedor);
-                const totalAposDesconto = Math.max(0, saldoDevedor - desconto);
-                return (
-                  <>
-                    <div className="modal__campo-inline modal__input--full modal__resumo-item">
-                      <span>Juros</span>
-                      <strong>{juros.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</strong>
-                    </div>
-                    <div className="modal__campo-inline modal__input--full modal__resumo-item">
-                      <span>Saldo devedor</span>
-                      <strong>{saldoDevedor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</strong>
-                    </div>
-                    <div className="modal__campo-inline modal__input--full modal__resumo-item modal__resumo-item--destaque">
-                      <span>Total após desconto</span>
-                      <strong>{totalAposDesconto.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</strong>
-                    </div>
-                  </>
-                );
-              })()}
-
-              <div className="modal__linha-dois-campos">
-                <div className="modal__campo-stack">
-                  <label className="modal__label">Desconto (R$)</label>
-                  <input
-                    placeholder="0,00"
-                    value={modalConfirmacaoPagamento.descontoDigitado}
-                    onChange={(e) =>
-                      setModalConfirmacaoPagamento((prev) => (prev ? { ...prev, descontoDigitado: e.target.value } : prev))
-                    }
-                    className="modal__input"
-                    disabled={loadingConfirmacaoPagamento}
-                  />
-                </div>
-                <div className="modal__campo-stack">
-                  <label className="modal__label modal__label--required">Método de pagamento</label>
-                  <select
-                    value={modalConfirmacaoPagamento.metodoPagamento}
-                    onChange={(e) =>
-                      setModalConfirmacaoPagamento((prev) => (prev ? { ...prev, metodoPagamento: e.target.value } : prev))
-                    }
-                    className="modal__input modal__select"
-                    disabled={loadingConfirmacaoPagamento}
-                  >
-                    <option value="">Selecione</option>
-                    <option value="PIX">PIX</option>
-                    <option value="Dinheiro">Dinheiro</option>
-                    <option value="Cartão">Cartão</option>
-                    <option value="Transferência">Transferência</option>
-                  </select>
-                </div>
-              </div>
-
-              <label className="modal__label modal__label--full">Data do pagamento</label>
-              <input
-                type="date"
-                value={modalConfirmacaoPagamento.dataPagamento}
-                onChange={(e) =>
-                  setModalConfirmacaoPagamento((prev) => (prev ? { ...prev, dataPagamento: e.target.value } : prev))
-                }
-                className="modal__input modal__input--full"
-                disabled={loadingConfirmacaoPagamento}
-              />
-
-              <label className="modal__label modal__label--full">Observação</label>
-              <textarea
-                placeholder="Opcional"
-                value={modalConfirmacaoPagamento.observacao}
-                onChange={(e) =>
-                  setModalConfirmacaoPagamento((prev) => (prev ? { ...prev, observacao: e.target.value } : prev))
-                }
-                className="modal__input modal__input--full"
-                rows={3}
-                disabled={loadingConfirmacaoPagamento}
-              />
-            </div>
-            <div className="modal__botoes modal__botoes--duplo">
-              <button
-                type="button"
-                className="btn btn--secondary"
-                onClick={() => setModalConfirmacaoPagamento(null)}
-                disabled={loadingConfirmacaoPagamento}
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                className="btn btn--primary"
-                onClick={confirmarPagamentoComModal}
-                disabled={loadingConfirmacaoPagamento || !modalConfirmacaoPagamento.metodoPagamento.trim()}
-              >
-                {loadingConfirmacaoPagamento ? "Confirmando..." : "Confirmar pagamento"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {modalPagamentoParcial && (
-        <div className="modal-overlay" onClick={() => setModalPagamentoParcial(null)}>
-          <div className="modal modal--cadastro modal--pagamento" onClick={(e) => e.stopPropagation()}>
-            <p className="modal__eyebrow">PAGAMENTO PARCIAL</p>
-            <h2 className="modal__titulo">{modalPagamentoParcial.nomeCliente}</h2>
-            <p className="modal__texto-confirmacao">
-              Mês: <strong>{formatarMesAno(modalPagamentoParcial.inadimplencia.vencimento)}</strong>{" "}
-              Vencimento: <strong>{formatarData(modalPagamentoParcial.inadimplencia.vencimento)}</strong>
-            </p>
-            <div className="modal__grid">
-              {(() => {
-                const i = modalPagamentoParcial.inadimplencia;
-                const totalDaApi = i.valor ?? i.valorDevedor ?? 0;
-                const juros = i.juros ?? 0;
-                const valorOriginal =
-                  i.valorOriginal != null ? i.valorOriginal : totalDaApi > 0 ? Math.max(0, totalDaApi - juros) : 0;
-                const valorTotal = totalDaApi > 0 ? totalDaApi : valorOriginal + juros;
-                return (
-                  <>
-                    <div className="modal__campo-inline modal__input--full modal__resumo-item">
-                      <span>Valor original</span>
-                      <strong>{valorOriginal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</strong>
-                    </div>
-                    <div className="modal__campo-inline modal__input--full modal__resumo-item">
-                      <span>Juros</span>
-                      <strong>{juros.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</strong>
-                    </div>
-                    <div className="modal__campo-inline modal__input--full modal__resumo-item modal__resumo-item--destaque">
-                      <span>Saldo devedor</span>
-                      <strong>{valorTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</strong>
-                    </div>
-                  </>
-                );
-              })()}
-
-              <label className="modal__label modal__label--required">Valor a pagar agora</label>
-              <input
-                placeholder="0,00"
-                value={modalPagamentoParcial.valorDigitado}
-                onChange={(e) =>
-                  setModalPagamentoParcial((prev) => (prev ? { ...prev, valorDigitado: e.target.value } : prev))
-                }
-                className="modal__input"
-              />
-
-              <label className="modal__label">Data do pagamento</label>
-              <input
-                type="date"
-                value={modalPagamentoParcial.dataPagamento}
-                onChange={(e) =>
-                  setModalPagamentoParcial((prev) => (prev ? { ...prev, dataPagamento: e.target.value } : prev))
-                }
-                className="modal__input"
-              />
-
-              <label className="modal__label">Método de pagamento</label>
-              <select
-                value={modalPagamentoParcial.metodoPagamento}
-                onChange={(e) =>
-                  setModalPagamentoParcial((prev) => (prev ? { ...prev, metodoPagamento: e.target.value } : prev))
-                }
-                className="modal__input modal__select"
-              >
-                <option value="PIX">PIX</option>
-                <option value="Dinheiro">Dinheiro</option>
-                <option value="Cartão">Cartão</option>
-                <option value="Transferência">Transferência</option>
-              </select>
-            </div>
-            <div className="modal__botoes modal__botoes--duplo">
-              <button type="button" className="btn btn--secondary" onClick={() => setModalPagamentoParcial(null)}>
-                Cancelar
-              </button>
-              <button
-                type="button"
-                className="btn btn--primary"
-                onClick={async () => {
-                  if (!modalPagamentoParcial) return;
-                  const i = modalPagamentoParcial.inadimplencia;
-                  const totalDaApi = i.valor ?? i.valorDevedor ?? 0;
-                  const juros = i.juros ?? 0;
-                  const valorOriginal =
-                    i.valorOriginal != null ? i.valorOriginal : totalDaApi > 0 ? Math.max(0, totalDaApi - juros) : 0;
-                  const saldoDevedor = totalDaApi > 0 ? totalDaApi : valorOriginal + juros;
-                  const valorReais = parseValorReais(modalPagamentoParcial.valorDigitado);
-                  if (!valorReais || valorReais <= 0) {
-                    setErro("Informe um valor maior que zero para o pagamento parcial.");
-                    return;
-                  }
-                  if (valorReais > saldoDevedor) {
-                    setErro("Valor não pode ser maior que o saldo devedor.");
-                    return;
-                  }
-                  setLoading(true);
-                  setErro(null);
-                  try {
-                    const valorPagoCentavos = Math.round(valorReais * 100);
-                    await api.post("/api/pagamentos", {
-                      dividaId: i.id,
-                      valorPago: valorPagoCentavos,
-                      dataPagamento: modalPagamentoParcial.dataPagamento || new Date().toISOString().slice(0, 10),
-                      metodoPagamento: modalPagamentoParcial.metodoPagamento || "PIX",
-                    });
-                    setModalPagamentoParcial(null);
-                    invalidateDashboard();
-                    await listar();
-                    setMensagemSucesso("Pagamento parcial registrado com sucesso.");
-                  } catch (e: unknown) {
-                    setErro(
-                      getApiErrorMessage(
-                        e,
-                        "Não foi possível registrar o pagamento parcial. Verifique o valor e tente novamente."
-                      )
-                    );
-                  } finally {
-                    setLoading(false);
-                  }
-                }}
-                disabled={loading}
-              >
-                {loading ? "Registrando…" : "Registrar pagamento"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {modalRegistroAberto && (
         <div className="modal-overlay" onClick={() => setModalRegistroAberto(false)}>
@@ -1482,6 +815,22 @@ function PlusIcon() {
   );
 }
 
+function SlidersIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="4" y1="21" x2="4" y2="14" />
+      <line x1="4" y1="10" x2="4" y2="3" />
+      <line x1="12" y1="21" x2="12" y2="12" />
+      <line x1="12" y1="8" x2="12" y2="3" />
+      <line x1="20" y1="21" x2="20" y2="16" />
+      <line x1="20" y1="12" x2="20" y2="3" />
+      <line x1="1" y1="14" x2="7" y2="14" />
+      <line x1="9" y1="8" x2="15" y2="8" />
+      <line x1="17" y1="16" x2="23" y2="16" />
+    </svg>
+  );
+}
+
 function CloseIcon() {
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1526,35 +875,6 @@ function EyeIcon() {
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
       <circle cx="12" cy="12" r="3" />
-    </svg>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
-  );
-}
-
-function EmailSendIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="4" width="20" height="16" rx="2" />
-      <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-      <path d="M16 14h6" />
-      <path d="m19 11 3 3-3 3" />
-    </svg>
-  );
-}
-
-function CancelIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10" />
-      <line x1="15" y1="9" x2="9" y2="15" />
-      <line x1="9" y1="9" x2="15" y2="15" />
     </svg>
   );
 }

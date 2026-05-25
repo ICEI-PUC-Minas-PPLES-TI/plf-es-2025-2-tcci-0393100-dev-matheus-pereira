@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 import type { AxiosError } from "axios";
+import Tab from "@mui/material/Tab";
+import Tabs from "@mui/material/Tabs";
 import { api, getApiErrorMessage } from "@/lib/api";
 
-type AbaId = "basico" | "credito" | "nfe" | "preco" | "cashback" | "ia";
+type AbaId = "basico" | "credito" | "nfe" | "preco" | "cashback" | "ia" | "regime";
 
 type MensagemIA = { role: "user" | "assistant"; texto: string };
 
@@ -91,12 +93,6 @@ export default function WebReformaTributaria() {
   const [erro, setErro] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Alíquotas (GET /api/tributos/aliquotas/{categoria})
-  type Aliquotas = { categoria: string; cbs: number; ibs: number; total: number } | null;
-  const [aliquotasPleno, setAliquotasPleno] = useState<Aliquotas>(null);
-  const [aliquotasReduzido, setAliquotasReduzido] = useState<Aliquotas>(null);
-  const [aliquotasZero, setAliquotasZero] = useState<Aliquotas>(null);
-
   // Regime por CNPJ (opcional) – GET /api/tributos/regime/{cnpj}
   const [cnpjRegime, setCnpjRegime] = useState("");
   const [regimeCnpjResult, setRegimeCnpjResult] = useState<RegimePorCnpjResponse | null>(null);
@@ -141,32 +137,6 @@ export default function WebReformaTributaria() {
   useEffect(() => {
     chatFimRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [mensagensIA, loadingIA]);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function carregarAliquotas() {
-      try {
-        const [rPleno, rReduzido, rZero] = await Promise.all([
-          api.get<Aliquotas>("/api/tributos/aliquotas/PLENO"),
-          api.get<Aliquotas>("/api/tributos/aliquotas/REDUZIDO"),
-          api.get<Aliquotas>("/api/tributos/aliquotas/ZERO"),
-        ]);
-        if (!cancelled) {
-          setAliquotasPleno(rPleno.data);
-          setAliquotasReduzido(rReduzido.data);
-          setAliquotasZero(rZero.data);
-        }
-      } catch {
-        if (!cancelled) {
-          setAliquotasPleno(null);
-          setAliquotasReduzido(null);
-          setAliquotasZero(null);
-        }
-      }
-    }
-    carregarAliquotas();
-    return () => { cancelled = true; };
-  }, []);
 
   function limparErro() {
     setErro(null);
@@ -428,6 +398,7 @@ export default function WebReformaTributaria() {
     { id: "preco", label: "Preço" },
     { id: "cashback", label: "Cashback" },
     { id: "ia", label: "Dúvidas (IA)" },
+    { id: "regime", label: "Regime por CNPJ" },
   ];
 
   return (
@@ -437,79 +408,22 @@ export default function WebReformaTributaria() {
         <p className="page-reforma__subtitle">Cálculo de CBS e IBS – Nova Reforma Tributária Brasileira</p>
       </div>
 
-      {aba !== "ia" && (aliquotasPleno || aliquotasReduzido || aliquotasZero) && (
-        <div className="page-reforma__aliquotas">
-          <p className="page-reforma__aliquotas-aviso">Alíquotas por categoria (estimativas). Consulte a legislação.</p>
-          <div className="page-reforma__aliquotas-cards">
-            {aliquotasPleno && (
-              <div className="page-reforma__aliquota-card">
-                <span className="page-reforma__aliquota-cat">Pleno</span>
-                <span>CBS {(aliquotasPleno.cbs * 100).toFixed(1)}% · IBS {(aliquotasPleno.ibs * 100).toFixed(1)}% · Total {(aliquotasPleno.total * 100).toFixed(1)}%</span>
-              </div>
-            )}
-            {aliquotasReduzido && (
-              <div className="page-reforma__aliquota-card">
-                <span className="page-reforma__aliquota-cat">Reduzido</span>
-                <span>CBS {(aliquotasReduzido.cbs * 100).toFixed(1)}% · IBS {(aliquotasReduzido.ibs * 100).toFixed(1)}% · Total {(aliquotasReduzido.total * 100).toFixed(1)}%</span>
-              </div>
-            )}
-            {aliquotasZero && (
-              <div className="page-reforma__aliquota-card">
-                <span className="page-reforma__aliquota-cat">Zero</span>
-                <span>CBS 0% · IBS 0% · Total 0%</span>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {aba !== "ia" && (
-      <div className="page-reforma__regime-cnpj">
-        <h3 className="page-reforma__regime-cnpj-titulo">Regime sugerido por CNPJ (opcional)</h3>
-        <div className="page-reforma__regime-cnpj-form">
-          <input
-            type="text"
-            className="page-reforma__input"
-            placeholder="00.000.000/0000-00"
-            value={cnpjRegime}
-            onChange={(e) => setCnpjRegime(maskCnpj(e.target.value))}
-            maxLength={18}
-            inputMode="numeric"
-            autoComplete="off"
-          />
-          <button
-            type="button"
-            className="btn btn--secondary page-reforma__btn"
-            onClick={consultarRegimeCnpj}
-            disabled={loadingRegimeCnpj || cnpjRegime.replace(/\D/g, "").length < 14}
-          >
-            {loadingRegimeCnpj ? "Consultando…" : "Consultar regime"}
-          </button>
-        </div>
-        {erroRegimeCnpj && <p className="page-reforma__erro page-reforma__erro-inline" role="alert">{erroRegimeCnpj}</p>}
-        {regimeCnpjResult && (
-          <div className="page-reforma__aliquota-card page-reforma__regime-cnpj-result">
-            <span><strong>Nome da empresa:</strong> {regimeCnpjResult.nomeEmpresa}</span>
-            <span><strong>Regime:</strong> {labelRegimeCnpj(regimeCnpjResult.regime)}</span>
-          </div>
-        )}
-      </div>
-      )}
-
-      <div className="page-reforma__tabs" role="tablist">
+      <Tabs
+        value={aba}
+        onChange={(_: SyntheticEvent, value: AbaId) => {
+          setAba(value);
+          setErro(null);
+        }}
+        variant="scrollable"
+        scrollButtons="auto"
+        className="page-reforma__tabs"
+        sx={{ borderBottom: 1, borderColor: "divider", mb: 2 }}
+        aria-label="Opções de cálculo"
+      >
         {abas.map(({ id, label }) => (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            aria-selected={aba === id}
-            className={`page-reforma__tab ${aba === id ? "page-reforma__tab--active" : ""}`}
-            onClick={() => { setAba(id); setErro(null); }}
-          >
-            {label}
-          </button>
+          <Tab key={id} label={label} value={id} id={`tab-reforma-${id}`} />
         ))}
-      </div>
+      </Tabs>
 
       {erro && (
         <div className="page-reforma__erro" role="alert">
@@ -918,6 +832,53 @@ export default function WebReformaTributaria() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {aba === "regime" && (
+          <div className="page-reforma__aba">
+            <div className="page-reforma__card page-reforma__regime-cnpj">
+              <h2 className="page-reforma__card-titulo">Regime sugerido por CNPJ</h2>
+              <p className="page-reforma__regime-cnpj-desc">
+                Consulta opcional do regime tributário da empresa com base no CNPJ informado.
+              </p>
+              <div className="page-reforma__regime-cnpj-form">
+                <input
+                  type="text"
+                  className="page-reforma__input"
+                  placeholder="00.000.000/0000-00"
+                  value={cnpjRegime}
+                  onChange={(e) => setCnpjRegime(maskCnpj(e.target.value))}
+                  maxLength={18}
+                  inputMode="numeric"
+                  autoComplete="off"
+                  aria-label="CNPJ da empresa"
+                />
+                <button
+                  type="button"
+                  className="btn btn--primary page-reforma__btn"
+                  onClick={() => void consultarRegimeCnpj()}
+                  disabled={loadingRegimeCnpj || cnpjRegime.replace(/\D/g, "").length < 14}
+                >
+                  {loadingRegimeCnpj ? "Consultando…" : "Consultar regime"}
+                </button>
+              </div>
+              {erroRegimeCnpj && (
+                <p className="page-reforma__erro page-reforma__erro-inline" role="alert">
+                  {erroRegimeCnpj}
+                </p>
+              )}
+              {regimeCnpjResult && (
+                <div className="page-reforma__regime-cnpj-result">
+                  <p>
+                    <strong>Nome da empresa:</strong> {regimeCnpjResult.nomeEmpresa}
+                  </p>
+                  <p>
+                    <strong>Regime:</strong> {labelRegimeCnpj(regimeCnpjResult.regime)}
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         )}
 

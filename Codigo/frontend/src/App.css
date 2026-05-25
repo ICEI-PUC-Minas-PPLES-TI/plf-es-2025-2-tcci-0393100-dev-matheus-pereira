@@ -142,6 +142,27 @@ a.topbar__brand-link:focus-visible {
 
 .app-layout--sidebar-hidden .main-wrapper {
   margin-left: 0;
+  width: 100%;
+  max-width: 100%;
+}
+
+.app-layout--sidebar-hidden .main-content {
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+}
+
+.app-layout--sidebar-hidden .dashboard,
+.app-layout--sidebar-hidden .page-inadimplentes,
+.app-layout--sidebar-hidden .page-inadimplentes--honorarios,
+.app-layout--sidebar-hidden .page-clientes,
+.app-layout--sidebar-hidden .page-servicos,
+.app-layout--sidebar-hidden .page-reforma,
+.app-layout--sidebar-hidden .page-relatorios {
+  max-width: none;
+  width: 100%;
+  margin-left: 0;
+  margin-right: 0;
 }
 
 .sidebar-brand {
@@ -840,8 +861,17 @@ a.sidebar-brand:focus-visible {
 
 .page-clientes__header-acoes .btn {
   justify-content: center;
+  align-items: center;
   width: 152px;
+  min-height: 38px;
+  white-space: nowrap;
   box-sizing: border-box;
+}
+
+.page-clientes__header-acoes .btn svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
 }
 
 .page-clientes__title {
@@ -909,8 +939,17 @@ a.sidebar-brand:focus-visible {
 
 .page-servicos__header-acoes .btn {
   justify-content: center;
+  align-items: center;
   width: 152px;
+  min-height: 38px;
+  white-space: nowrap;
   box-sizing: border-box;
+}
+
+.page-servicos__header-acoes .btn svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
 }
 
 .page-servicos .btn--primary {
@@ -1408,6 +1447,16 @@ a.sidebar-brand:focus-visible {
   flex-shrink: 0;
 }
 
+/* Modal de pagamento: alinhado ao topo (honorários / inadimplentes) */
+.modal-overlay:has(.modal--pagamento) {
+  align-items: flex-start;
+  padding-top: 20px;
+}
+
+.modal-overlay:has(.modal--pagamento) > .modal {
+  margin: 0;
+}
+
 .modal {
   background: #fff;
   border: 1px solid #cbd5e1;
@@ -1616,6 +1665,120 @@ a.sidebar-brand:focus-visible {
 
 .modal--pagamento textarea.modal__input {
   min-height: 88px;
+}
+
+.modal-pagamento__tipo-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 0 0 20px;
+}
+
+.modal-pagamento__tipo-tab {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px;
+  border: 2px solid var(--glass-border, #e2e8f0);
+  border-radius: 10px;
+  background: #f8fafc;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+.modal-pagamento__tipo-tab:hover:not(:disabled) {
+  border-color: var(--cor-principal);
+}
+
+.modal-pagamento__tipo-tab--ativo {
+  border-color: var(--cor-principal);
+  background: rgba(147, 51, 234, 0.06);
+  box-shadow: 0 0 0 1px var(--cor-principal);
+}
+
+.modal-pagamento__tipo-icone {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.875rem;
+}
+
+.modal-pagamento__tipo-icone--total {
+  background: rgba(34, 197, 94, 0.15);
+  color: #16a34a;
+}
+
+.modal-pagamento__tipo-icone--parcial {
+  background: rgba(59, 130, 246, 0.15);
+  color: #2563eb;
+}
+
+.modal-pagamento__tipo-icone--email {
+  background: rgba(147, 51, 234, 0.12);
+  color: var(--cor-principal);
+}
+
+.modal-pagamento__tipo-icone--email svg {
+  stroke: currentColor;
+  fill: none;
+}
+
+.modal-pagamento__tipo-icone--whatsapp {
+  background: rgba(37, 211, 102, 0.15);
+  color: #128c7e;
+}
+
+.modal-cobranca-canal__pergunta {
+  margin: 0 0 16px;
+  font-size: 1rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.modal-cobranca-canal__opcoes .modal-pagamento__tipo-tab {
+  cursor: pointer;
+}
+
+.modal-cobranca-canal__opcoes .modal-pagamento__tipo-tab:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.modal-cobranca-canal__loading {
+  margin: 0 0 12px;
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.modal-pagamento__tipo-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.modal-pagamento__tipo-texto strong {
+  font-size: 0.9375rem;
+  color: var(--text-primary, #0f172a);
+}
+
+.modal-pagamento__tipo-texto small {
+  font-size: 0.8125rem;
+  color: var(--text-secondary, #64748b);
+  line-height: 1.3;
+}
+
+@media (max-width: 520px) {
+  .modal-pagamento__tipo-tabs {
+    grid-template-columns: 1fr;
+  }
 }
 
 .modal__botoes--duplo {
@@ -2637,6 +2800,239 @@ select.modal__select {
   gap: 6px;
 }
 
+/* Página de honorários por cliente */
+.page-inadimplentes--honorarios {
+  max-width: 1100px;
+  width: 100%;
+}
+
+.page-inadimplentes-honorarios__voltar {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--cor-principal);
+  text-decoration: none;
+}
+
+.page-inadimplentes-honorarios__voltar:hover {
+  color: var(--cor-principal-hover);
+}
+
+.page-inadimplentes-honorarios__voltar-link {
+  color: var(--cor-principal);
+  font-weight: 500;
+}
+
+.page-inadimplentes-honorarios__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.page-inadimplentes-honorarios__cliente-nome {
+  margin: 6px 0 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.page-inadimplentes-honorarios__cliente-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  text-align: right;
+}
+
+.page-inadimplentes-honorarios__cards {
+  margin-bottom: 28px;
+}
+
+.page-inadimplentes-honorarios__secao {
+  margin-top: 8px;
+}
+
+.page-inadimplentes-honorarios__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.page-inadimplentes-honorarios__paginacao {
+  margin-top: 20px;
+}
+
+.page-inadimplentes-honorarios__card {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.page-inadimplentes-honorarios__card-topo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.page-inadimplentes-honorarios__card-topo-linha {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 28px;
+}
+
+.page-inadimplentes-honorarios__periodo {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+  min-width: 0;
+}
+
+.page-inadimplentes-honorarios__vencimento {
+  display: block;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.35;
+}
+
+.page-inadimplentes-honorarios__atraso {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(100, 116, 139, 0.12);
+  color: var(--text-secondary);
+  line-height: 1.25;
+  text-align: center;
+  max-width: 52%;
+}
+
+.page-inadimplentes-honorarios__atraso--alerta {
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
+}
+
+.page-inadimplentes-honorarios__valores {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 6px;
+}
+
+.page-inadimplentes-honorarios__valor-item {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  min-width: 0;
+}
+
+.page-inadimplentes-honorarios__valor-item span {
+  line-height: 1.25;
+}
+
+.page-inadimplentes-honorarios__valor-item strong {
+  font-size: 0.9375rem;
+  color: var(--text-primary);
+  line-height: 1.25;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.page-inadimplentes-honorarios__valor-item--destaque strong {
+  color: var(--cor-principal);
+  font-size: 1.0625rem;
+  font-weight: 700;
+}
+
+.page-inadimplentes-honorarios__acoes {
+  justify-content: flex-start;
+}
+
+.page-inadimplentes-honorarios__pagamentos {
+  padding-top: 12px;
+  border-top: 1px solid var(--glass-border);
+}
+
+.page-inadimplentes-honorarios__pagamentos-titulo {
+  margin: 0 0 10px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.page-inadimplentes-honorarios__pagamentos-vazio {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.page-inadimplentes-honorarios__pagamentos-tabela {
+  margin-bottom: 0;
+}
+
+.page-inadimplentes-honorarios__total-geral {
+  margin-top: 24px;
+  padding: 16px 20px;
+  font-size: 1rem;
+  text-align: right;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+}
+
+.page-inadimplentes-honorarios__total-geral strong {
+  font-size: 1.125rem;
+  color: var(--cor-principal);
+}
+
+.page-inadimplentes-honorarios__vazio {
+  padding: 40px 24px;
+  text-align: center;
+  background: var(--glass-bg);
+  border: 1px dashed var(--glass-border);
+  border-radius: 12px;
+}
+
+.page-inadimplentes-honorarios__vazio p {
+  margin: 0 0 16px;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 640px) {
+  .page-inadimplentes-honorarios__valores {
+    grid-template-columns: 1fr;
+  }
+
+  .page-inadimplentes-honorarios__cliente-meta {
+    text-align: left;
+  }
+
+  .page-inadimplentes-honorarios__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .modal--detalhe-meses .modal__detalhe-meses {
   margin-bottom: 16px;
 }
@@ -3411,6 +3807,11 @@ select.modal__select {
     padding-top: max(12px, env(safe-area-inset-top));
   }
 
+  .modal-overlay:has(.modal--pagamento) {
+    align-items: flex-start;
+    padding-top: max(20px, env(safe-area-inset-top));
+  }
+
   .modal {
     max-width: 100%;
     padding: 20px 16px;
@@ -3511,6 +3912,11 @@ select.modal__select {
     padding: 8px;
   }
 
+  .modal-overlay:has(.modal--pagamento) {
+    align-items: flex-start;
+    padding-top: max(16px, env(safe-area-inset-top));
+  }
+
   .modal {
     padding: 16px 12px;
     max-height: calc(100vh - 16px);
@@ -3548,43 +3954,6 @@ select.modal__select {
   margin: 0;
 }
 
-.page-reforma__aliquotas {
-  margin-bottom: 20px;
-  padding: 16px;
-  background: #fff;
-  border-radius: 10px;
-  border: 1px solid var(--glass-border);
-}
-
-.page-reforma__aliquotas-aviso {
-  font-size: 0.8125rem;
-  color: var(--text-secondary);
-  margin: 0 0 12px;
-}
-
-.page-reforma__aliquotas-cards {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.page-reforma__aliquota-card {
-  padding: 10px 14px;
-  background: var(--glass-bg-10);
-  border-radius: 8px;
-  border: 1px solid var(--glass-border);
-  font-size: 0.875rem;
-  color: var(--text-primary);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.page-reforma__aliquota-cat {
-  font-weight: 600;
-  color: var(--cor-principal);
-}
-
 .page-reforma__regime-cnpj {
   margin-bottom: 20px;
   padding: 16px;
@@ -3611,42 +3980,49 @@ select.modal__select {
   max-width: 260px;
 }
 
+.page-reforma__regime-cnpj-desc {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin: 0 0 16px;
+}
+
 .page-reforma__regime-cnpj-result {
-  margin-top: 10px;
+  margin-top: 16px;
+  padding: 14px 16px;
+  background: var(--glass-bg-10);
+  border-radius: 8px;
+  border: 1px solid var(--glass-border);
+}
+
+.page-reforma__regime-cnpj-result p {
+  margin: 0 0 8px;
+  font-size: 0.9375rem;
+  color: var(--text-primary);
+}
+
+.page-reforma__regime-cnpj-result p:last-child {
+  margin-bottom: 0;
 }
 
 .page-reforma__erro-inline {
   margin-top: 8px;
 }
 
-.page-reforma__tabs {
-  display: flex;
-  gap: 4px;
-  margin-bottom: 20px;
-  border-bottom: 2px solid var(--glass-border);
-  flex-wrap: wrap;
+.page-reforma .MuiTabs-indicator {
+  background: var(--cor-principal) !important;
 }
 
-.page-reforma__tab {
-  padding: 12px 20px;
-  border: none;
-  background: none;
-  color: var(--text-secondary);
-  font-size: 0.9375rem;
+.page-reforma .MuiTab-root {
+  color: var(--text-secondary) !important;
   font-weight: 500;
-  cursor: pointer;
-  border-bottom: 3px solid transparent;
-  margin-bottom: -2px;
-  transition: color 0.2s, border-color 0.2s;
+  font-size: 0.8125rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  min-height: 48px;
 }
 
-.page-reforma__tab:hover {
-  color: var(--text-primary);
-}
-
-.page-reforma__tab--active {
-  color: var(--cor-principal);
-  border-bottom-color: var(--cor-principal);
+.page-reforma .MuiTab-root.Mui-selected {
+  color: var(--cor-principal) !important;
   font-weight: 600;
 }
 

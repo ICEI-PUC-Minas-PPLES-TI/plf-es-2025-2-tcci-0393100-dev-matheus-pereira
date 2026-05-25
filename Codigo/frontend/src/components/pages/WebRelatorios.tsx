@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, getApiErrorMessage, getRelatorioErrorMessage, isMockEnabled, normalizeListResponse } from "@/lib/api";
+import { exportarCSV } from "@/lib/exportarCsv";
 import {
   normalizeClienteFromApi,
   normalizeInadimplenciaPeriodoFromApi,
@@ -62,20 +63,6 @@ function formatarMoeda(n: number | null | undefined) {
 function formatarPercentual(n: number | null | undefined, casas = 1) {
   const valor = typeof n === "number" && Number.isFinite(n) ? n : 0;
   return `${valor.toFixed(casas)}%`;
-}
-
-/** Gera CSV e faz download */
-function exportarCSV(nome: string, cabecalhos: string[], linhas: string[][]) {
-  const sep = ";";
-  const BOM = "\uFEFF";
-  const csv = BOM + [cabecalhos.join(sep), ...linhas.map((r) => r.join(sep))].join("\r\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${nome}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
 }
 
 const REPORT_PRINT_CSS = `
@@ -650,7 +637,7 @@ export default function WebRelatorios() {
             </Card>
             <Stack direction="row" spacing={2} justifyContent="center" flexWrap="wrap">
               <Button variant="contained" startIcon={<DownloadIcon />} onClick={() => imprimirRelatorio({ aba: "ranking", ranking, filtroPeriodo, filtroLimit })}>
-                Gerar PDF
+                Gerar relatório
               </Button>
               <Button variant="contained" startIcon={<ExcelIcon />} onClick={exportarRankingExcel}>
                 Exportar Excel
@@ -692,7 +679,7 @@ export default function WebRelatorios() {
                 <Card elevation={1}><CardHeader title="B) Dívidas Ativas" titleTypographyProps={{ variant: "h2", fontSize: "1.125rem" }} /><CardContent sx={{ pt: 0 }}><TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1 }}><Table size="small" stickyHeader><TableHead><TableRow><TableCell><strong>Protocolo</strong></TableCell><TableCell><strong>Descrição</strong></TableCell><TableCell><strong>Vencimento</strong></TableCell><TableCell align="right"><strong>Valor Original</strong></TableCell><TableCell align="right"><strong>Valor Devido</strong></TableCell><TableCell><strong>Status</strong></TableCell><TableCell align="center"><strong>Dias Atraso</strong></TableCell></TableRow></TableHead><TableBody>{extrato.dividasAtivas.map((d) => (<TableRow key={d.id} hover><TableCell>{d.protocolo}</TableCell><TableCell>{d.descricao}</TableCell><TableCell>{formatarData(d.vencimento)}</TableCell><TableCell align="right">{formatarMoeda(d.valorOriginal)}</TableCell><TableCell align="right">{formatarMoeda(d.valorDevido)}</TableCell><TableCell>{d.status}</TableCell><TableCell align="center">{d.diasAtraso}</TableCell></TableRow>))}</TableBody></Table></TableContainer></CardContent></Card>
                 <Card elevation={1}><CardHeader title="C) Histórico de Pagamentos" titleTypographyProps={{ variant: "h2", fontSize: "1.125rem" }} /><CardContent sx={{ pt: 0 }}><TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1 }}><Table size="small" stickyHeader><TableHead><TableRow><TableCell><strong>Data</strong></TableCell><TableCell><strong>Protocolo</strong></TableCell><TableCell align="right"><strong>Valor Pago</strong></TableCell><TableCell><strong>Método</strong></TableCell><TableCell align="right"><strong>Saldo Após</strong></TableCell></TableRow></TableHead><TableBody>{extrato.historicoPagamentos.map((p, i) => (<TableRow key={i} hover><TableCell>{formatarData(p.data)}</TableCell><TableCell>{p.protocolo}</TableCell><TableCell align="right">{formatarMoeda(p.valorPago)}</TableCell><TableCell>{p.metodo}</TableCell><TableCell align="right">{formatarMoeda(p.saldoApos)}</TableCell></TableRow>))}</TableBody></Table></TableContainer></CardContent></Card>
                 <Card elevation={1}><CardHeader title="D) Notificações Enviadas" titleTypographyProps={{ variant: "h2", fontSize: "1.125rem" }} /><CardContent sx={{ pt: 0 }}><TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1 }}><Table size="small" stickyHeader><TableHead><TableRow><TableCell><strong>Data</strong></TableCell><TableCell><strong>Tipo</strong></TableCell><TableCell><strong>Status</strong></TableCell><TableCell align="center"><strong>Tentativas</strong></TableCell></TableRow></TableHead><TableBody>{extrato.notificacoes.map((n, i) => (<TableRow key={i} hover><TableCell>{formatarData(n.data)}</TableCell><TableCell>{n.tipo}</TableCell><TableCell>{n.status}</TableCell><TableCell align="center">{n.tentativas}</TableCell></TableRow>))}</TableBody></Table></TableContainer></CardContent></Card>
-                <Stack direction="row" justifyContent="center"><Button variant="contained" startIcon={<DownloadIcon />} onClick={() => imprimirRelatorio({ aba: "extrato", extrato: extrato ?? undefined })}>Gerar PDF</Button></Stack>
+                <Stack direction="row" justifyContent="center"><Button variant="contained" startIcon={<DownloadIcon />} onClick={() => imprimirRelatorio({ aba: "extrato", extrato: extrato ?? undefined })}>Gerar relatório</Button></Stack>
               </>
             )}
           </Stack>
@@ -714,7 +701,7 @@ export default function WebRelatorios() {
                   <Card variant="outlined" sx={{ flex: "1 1 200px", minWidth: 0 }}><CardContent><Typography variant="body2" color="text.secondary">Dívidas vencidas no período</Typography><Typography fontWeight={600}>{inadPeriodo.dividasVencidasNoPeriodo} ({formatarMoeda(inadPeriodo.valorVencidoNoPeriodo)})</Typography></CardContent></Card>
                 </Stack>
                 <Card elevation={1}><CardHeader title="Detalhamento" titleTypographyProps={{ variant: "h2", fontSize: "1.125rem" }} /><CardContent sx={{ pt: 0 }}><TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1 }}><Table size="small" stickyHeader><TableHead><TableRow><TableCell><strong>Cliente</strong></TableCell><TableCell><strong>CPF/CNPJ</strong></TableCell><TableCell align="center"><strong>Qtd. Dívidas</strong></TableCell><TableCell align="right"><strong>Valor Total</strong></TableCell><TableCell><strong>Status Pior</strong></TableCell></TableRow></TableHead><TableBody>{inadPeriodo.detalhamento.map((d) => (<TableRow key={d.clienteId} hover><TableCell>{d.clienteNome}</TableCell><TableCell>{d.cpfCnpj}</TableCell><TableCell align="center">{d.qtdDividas}</TableCell><TableCell align="right">{formatarMoeda(d.valorTotal)}</TableCell><TableCell>{d.statusPior}</TableCell></TableRow>))}</TableBody></Table></TableContainer></CardContent></Card>
-                <Stack direction="row" spacing={2} justifyContent="center" flexWrap="wrap"><Button variant="contained" startIcon={<DownloadIcon />} onClick={() => imprimirRelatorio({ aba: "inadimplencia", inadPeriodo: inadPeriodo ?? undefined, dataInicio, dataFim })}>Gerar PDF</Button><Button variant="contained" startIcon={<ExcelIcon />} onClick={exportarInadimplenciaExcel}>Exportar Excel</Button></Stack>
+                <Stack direction="row" spacing={2} justifyContent="center" flexWrap="wrap"><Button variant="contained" startIcon={<DownloadIcon />} onClick={() => imprimirRelatorio({ aba: "inadimplencia", inadPeriodo: inadPeriodo ?? undefined, dataInicio, dataFim })}>Gerar relatório</Button><Button variant="contained" startIcon={<ExcelIcon />} onClick={exportarInadimplenciaExcel}>Exportar Excel</Button></Stack>
               </>
             )}
           </Stack>
@@ -733,7 +720,7 @@ export default function WebRelatorios() {
                   <Card variant="outlined" sx={{ flex: "1 1 200px", minWidth: 0 }}><CardContent><Typography variant="body2" color="text.secondary">Período</Typography><Typography fontWeight={600}>{formatarData(pagamentos.periodoInicio ?? dataInicioPag)} a {formatarData(pagamentos.periodoFim ?? dataFimPag)}</Typography></CardContent></Card>
                   <Card variant="outlined" sx={{ flex: "1 1 200px", minWidth: 0 }}><CardContent><Typography variant="body2" color="text.secondary">Valor total recebido</Typography><Typography fontWeight={600}>{formatarMoeda(pagamentos.totalRecebido)}</Typography></CardContent></Card>
                 </Stack>
-                <Stack direction="row" spacing={2} justifyContent="center" flexWrap="wrap"><Button variant="contained" startIcon={<DownloadIcon />} onClick={() => imprimirRelatorio({ aba: "pagamentos", pagamentos: pagamentos ?? undefined, dataInicioPag, dataFimPag })}>Gerar PDF</Button><Button variant="contained" startIcon={<ExcelIcon />} onClick={exportarPagamentosExcel}>Exportar Excel</Button></Stack>
+                <Stack direction="row" spacing={2} justifyContent="center" flexWrap="wrap"><Button variant="contained" startIcon={<DownloadIcon />} onClick={() => imprimirRelatorio({ aba: "pagamentos", pagamentos: pagamentos ?? undefined, dataInicioPag, dataFimPag })}>Gerar relatório</Button><Button variant="contained" startIcon={<ExcelIcon />} onClick={exportarPagamentosExcel}>Exportar Excel</Button></Stack>
               </>
             )}
           </Stack>
@@ -745,7 +732,7 @@ export default function WebRelatorios() {
             {aging && !loadingAging && (
               <>
                 <Card elevation={1}><CardHeader title="Análise de Aging (Envelhecimento da Dívida)" titleTypographyProps={{ variant: "h2", fontSize: "1.125rem" }} /><CardContent sx={{ pt: 0 }}><TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1 }}><Table size="small" stickyHeader><TableHead><TableRow><TableCell><strong>Faixa</strong></TableCell><TableCell align="center"><strong>Qtd. Dívidas</strong></TableCell><TableCell align="right"><strong>Valor Total</strong></TableCell><TableCell align="right"><strong>% do Total</strong></TableCell></TableRow></TableHead><TableBody>{aging.faixas.map((f) => (<TableRow key={f.faixa} hover><TableCell>{f.faixa}</TableCell><TableCell align="center">{f.qtdDividas}</TableCell><TableCell align="right">{formatarMoeda(f.valorTotal)}</TableCell><TableCell align="right">{formatarPercentual(f.percentual)}</TableCell></TableRow>))}</TableBody></Table></TableContainer><Typography sx={{ mt: 2, fontWeight: 600 }}>Valor total geral: {formatarMoeda(aging.valorTotalGeral)}</Typography></CardContent></Card>
-                <Stack direction="row" spacing={2} justifyContent="center" flexWrap="wrap"><Button variant="contained" startIcon={<DownloadIcon />} onClick={() => imprimirRelatorio({ aba: "aging", aging: aging ?? undefined })}>Gerar PDF</Button><Button variant="contained" startIcon={<ExcelIcon />} onClick={exportarAgingExcel}>Exportar Excel</Button></Stack>
+                <Stack direction="row" spacing={2} justifyContent="center" flexWrap="wrap"><Button variant="contained" startIcon={<DownloadIcon />} onClick={() => imprimirRelatorio({ aba: "aging", aging: aging ?? undefined })}>Gerar relatório</Button><Button variant="contained" startIcon={<ExcelIcon />} onClick={exportarAgingExcel}>Exportar Excel</Button></Stack>
               </>
             )}
           </Stack>
@@ -758,7 +745,7 @@ export default function WebRelatorios() {
             {efetividade && !loadingEfetividade && (
               <>
                 <Card elevation={1}><CardHeader title={`Efetividade de Cobrança — ${efetividade.periodo}`} titleTypographyProps={{ variant: "h2", fontSize: "1.125rem" }} /><CardContent sx={{ pt: 0 }}><Stack spacing={1.5}><Typography>📧 Notificações enviadas: <strong>{efetividade.totalNotificacoes}</strong></Typography><Typography>✅ Emails entregues: <strong>{efetividade.emailsEntregues}</strong> ({formatarPercentual(efetividade.taxaEntrega)})</Typography><Typography>❌ Falhas: <strong>{efetividade.falhas}</strong></Typography><Typography>💰 Cobranças que resultaram em pagamento: <strong>{efetividade.cobrancasComPagamento}</strong> ({efetividade.taxaConversao}%)</Typography><Typography>⏱ Tempo médio entre cobrança e pagamento: <strong>{efetividade.tempoMedioDias}</strong> dias</Typography>{efetividade.comparativoAnterior && (<Typography>📊 Comparativo: {efetividade.comparativoAnterior.periodo} {efetividade.comparativoAnterior.taxaConversao}% → este mês {efetividade.taxaConversao}% ({efetividade.comparativoAnterior.variacaoPp >= 0 ? "+" : ""}{efetividade.comparativoAnterior.variacaoPp}pp) ✅</Typography>)}</Stack></CardContent></Card>
-                <Stack direction="row" justifyContent="center"><Button variant="contained" startIcon={<DownloadIcon />} onClick={() => imprimirRelatorio({ aba: "efetividade", efetividade: efetividade ?? undefined, mesEfetividade })}>Gerar PDF</Button></Stack>
+                <Stack direction="row" justifyContent="center"><Button variant="contained" startIcon={<DownloadIcon />} onClick={() => imprimirRelatorio({ aba: "efetividade", efetividade: efetividade ?? undefined, mesEfetividade })}>Gerar relatório</Button></Stack>
               </>
             )}
           </Stack>

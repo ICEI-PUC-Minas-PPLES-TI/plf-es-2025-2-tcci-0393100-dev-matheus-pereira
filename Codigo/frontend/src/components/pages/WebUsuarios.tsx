@@ -10,10 +10,10 @@ import WebUsuariosAtivos from "./WebUsuariosAtivos";
 type Aba = "pendentes" | "ativos";
 
 const ABA_KEY = "aba";
-const ABA_ATIVOS = "ativos";
+const ABA_PENDENTES = "pendentes";
 
 function parseAba(raw: string | null): Aba {
-  return raw === ABA_ATIVOS ? "ativos" : "pendentes";
+  return raw === ABA_PENDENTES ? "pendentes" : "ativos";
 }
 
 export default function WebUsuarios() {
@@ -26,9 +26,9 @@ export default function WebUsuarios() {
   const setAba = useCallback(
     (_: SyntheticEvent, value: Aba) => {
       if (value === "pendentes") {
-        setSearchParams({}, { replace: true });
+        setSearchParams({ [ABA_KEY]: ABA_PENDENTES }, { replace: true });
       } else {
-        setSearchParams({ [ABA_KEY]: ABA_ATIVOS }, { replace: true });
+        setSearchParams({}, { replace: true });
       }
     },
     [setSearchParams]
@@ -51,8 +51,8 @@ export default function WebUsuarios() {
         sx={{ borderBottom: 1, borderColor: "divider", mb: 2 }}
         aria-label="Seções de usuários"
       >
-        <Tab label="Cadastros pendentes" value="pendentes" id="tab-usuarios-pendentes" />
         <Tab label="Contas ativas" value="ativos" id="tab-usuarios-ativos" />
+        <Tab label="Cadastros pendentes" value="pendentes" id="tab-usuarios-pendentes" />
       </Tabs>
 
       <Box role="tabpanel" id={`panel-usuarios-${aba}`} aria-labelledby={`tab-usuarios-${aba === "pendentes" ? "pendentes" : "ativos"}`}>

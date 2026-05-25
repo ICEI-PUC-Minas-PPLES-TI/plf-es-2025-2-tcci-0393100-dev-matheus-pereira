@@ -10,6 +10,7 @@ import type {
   RankingDevedorItem,
   InadimplenciaPeriodoRelatorio,
   ResumoFinanceiro,
+  ResumoRelatorio,
 } from "@/types/api";
 
 /** Backend pode retornar clienteId em vez de id, statusCliente em vez de situacao, criadoEm/atualizadoEm */
@@ -185,10 +186,24 @@ export function normalizeInadimplenciaPeriodoFromApi(data: unknown): Inadimplenc
 export function normalizeResumoFinanceiroFromApi(data: unknown): ResumoFinanceiro | null {
   if (!data || typeof data !== "object") return null;
   const d = data as Record<string, unknown>;
+  const conv = (v: number) => (VALOR_CENTAVOS ? v / 100 : v);
   return {
-    totalEmAberto: Number(d.totalEmAberto ?? 0),
-    totalRecebido: Number(d.totalRecebido ?? d.totalPago ?? 0),
+    totalEmAberto: conv(Number(d.totalEmAberto ?? 0)),
+    totalRecebido: conv(Number(d.totalRecebido ?? d.totalPago ?? 0)),
     periodoInicio: d.periodoInicio != null ? String(d.periodoInicio) : d.dataInicio != null ? String(d.dataInicio) : undefined,
     periodoFim: d.periodoFim != null ? String(d.periodoFim) : d.dataFim != null ? String(d.dataFim) : undefined,
+  };
+}
+
+/** Normaliza GET /api/relatorios/resumo (dashboard). Valores monetários em reais quando VALOR_CENTAVOS=false. */
+export function normalizeResumoRelatorioFromApi(data: unknown): ResumoRelatorio | null {
+  if (!data || typeof data !== "object") return null;
+  const d = data as Record<string, unknown>;
+  const conv = (v: number) => (VALOR_CENTAVOS ? v / 100 : v);
+  return {
+    totalClientes: Number(d.totalClientes ?? 0),
+    totalDividas: Number(d.totalDividas ?? 0),
+    totalEmAberto: conv(Number(d.totalEmAberto ?? 0)),
+    totalPago: conv(Number(d.totalPago ?? d.totalRecebido ?? 0)),
   };
 }
