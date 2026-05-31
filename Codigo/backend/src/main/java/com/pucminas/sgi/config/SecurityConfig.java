@@ -38,6 +38,7 @@ public class SecurityConfig {
                                 "/api/auth/redefinir-senha"
                         ).permitAll()
                         .requestMatchers("/health").permitAll()
+                        .requestMatchers("/api/sicoob/webhook/**").permitAll()
                         .requestMatchers("/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().authenticated()

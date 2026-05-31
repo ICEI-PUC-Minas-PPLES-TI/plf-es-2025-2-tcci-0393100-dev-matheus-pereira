@@ -52,6 +52,15 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "Internal Server Error", ex.getMessage(), request.getRequestURI());
     }
 
+    @ExceptionHandler(SicoobApiException.class)
+    public ResponseEntity<ErrorResponse> handleSicoob(SicoobApiException ex, HttpServletRequest request) {
+        log.error("Falha na API Sicoob: {}", ex.getMessage());
+        HttpStatus status = ex.getStatusCode() >= 400 && ex.getStatusCode() < 600
+                ? HttpStatus.valueOf(ex.getStatusCode())
+                : HttpStatus.BAD_GATEWAY;
+        return buildResponse(status, "Sicoob API Error", ex.getMessage(), request.getRequestURI());
+    }
+
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ErrorResponse> handleBadCredentials(BadCredentialsException ex, HttpServletRequest request) {
         return buildResponse(HttpStatus.UNAUTHORIZED, "Unauthorized", "Telefone ou senha inválidos.", request.getRequestURI());
