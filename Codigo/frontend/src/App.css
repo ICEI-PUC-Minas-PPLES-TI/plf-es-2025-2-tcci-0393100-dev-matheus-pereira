@@ -142,13 +142,14 @@ a.topbar__brand-link:focus-visible {
 
 .app-layout--sidebar-hidden .main-wrapper {
   margin-left: 0;
+  flex: 1 1 100%;
   width: 100%;
   max-width: 100%;
 }
 
 .app-layout--sidebar-hidden .main-content {
   width: 100%;
-  max-width: none;
+  max-width: 100%;
   box-sizing: border-box;
 }
 
@@ -158,6 +159,7 @@ a.topbar__brand-link:focus-visible {
 .app-layout--sidebar-hidden .page-clientes,
 .app-layout--sidebar-hidden .page-servicos,
 .app-layout--sidebar-hidden .page-reforma,
+.app-layout--sidebar-hidden .page-reforma.tax-sim,
 .app-layout--sidebar-hidden .page-relatorios {
   max-width: none;
   width: 100%;
@@ -3937,6 +3939,10 @@ select.modal__select {
   border: 1px solid var(--glass-border);
 }
 
+.page-reforma.tax-sim {
+  max-width: 1200px;
+}
+
 .page-reforma__header {
   margin-bottom: 24px;
 }
@@ -4339,4 +4345,472 @@ select.modal__select {
     grid-column: 2;
     grid-row: 1 / 3;
   }
+}
+
+/* ========== Simulador de Impacto Tributário ========== */
+.tax-sim__header {
+  margin-bottom: 20px;
+}
+
+.tax-sim__eyebrow {
+  margin: 0 0 4px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--cor-principal);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tax-sim__title {
+  font-size: 1.625rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 6px;
+}
+
+.tax-sim__subtitle {
+  margin: 0;
+  font-size: 0.9375rem;
+  color: var(--text-secondary);
+  max-width: 640px;
+}
+
+.tax-sim__content {
+  margin-top: 8px;
+}
+
+.tax-sim__split {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 24px;
+  align-items: start;
+}
+
+.tax-sim__panel--form {
+  min-width: 0;
+}
+
+.tax-sim__panel--results {
+  position: sticky;
+  top: 16px;
+}
+
+.tax-sim__card {
+  background: #fff;
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  padding: 24px;
+  margin-bottom: 16px;
+}
+
+.tax-sim__card-title {
+  margin: 0 0 8px;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.tax-sim__card-desc {
+  margin: 0 0 20px;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.tax-sim__type-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.tax-sim__type-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 14px 16px;
+  text-align: left;
+  background: #fff;
+  border: 2px solid var(--glass-border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.tax-sim__type-card:hover {
+  border-color: #d8b4d4;
+}
+
+.tax-sim__type-card--active {
+  border-color: var(--cor-principal);
+  box-shadow: 0 0 0 1px var(--cor-principal);
+  background: rgba(164, 63, 155, 0.04);
+}
+
+.tax-sim__type-card-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.tax-sim__type-card-desc {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.tax-sim__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tax-sim__fields--grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.tax-sim__fields-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.tax-sim__label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.tax-sim__input,
+.tax-sim__select,
+.tax-sim__textarea {
+  padding: 10px 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  font-size: 1rem;
+  color: var(--text-primary);
+  background: #fff;
+  font-family: inherit;
+}
+
+.tax-sim__input:focus,
+.tax-sim__select:focus,
+.tax-sim__textarea:focus {
+  outline: none;
+  border-color: var(--cor-principal);
+}
+
+.tax-sim__input:disabled,
+.tax-sim__select:disabled {
+  background: #f9fafb;
+  color: var(--text-secondary);
+}
+
+.tax-sim__checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.tax-sim__btn {
+  align-self: flex-start;
+}
+
+.tax-sim__inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.tax-sim__inline .tax-sim__input {
+  flex: 1;
+  min-width: 200px;
+}
+
+.tax-sim__hint {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.tax-sim__alert {
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.tax-sim__alert--info {
+  background: #f5f3ff;
+  border: 1px solid #e9d5ff;
+  color: #5b21b6;
+}
+
+.tax-sim__explanation {
+  margin: 0;
+  padding: 12px 14px;
+  background: #f9fafb;
+  border-radius: 8px;
+  border-left: 3px solid var(--cor-principal);
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+.tax-sim__results {
+  background: #fff;
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  padding: 20px;
+}
+
+.tax-sim__results--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 0.9375rem;
+}
+
+.tax-sim__results-title {
+  margin: 0 0 16px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.tax-sim__result-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.tax-sim__result-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--glass-bg-10);
+  border: 1px solid var(--glass-border);
+}
+
+.tax-sim__result-card--highlight {
+  background: rgba(164, 63, 155, 0.08);
+  border-color: rgba(164, 63, 155, 0.25);
+}
+
+.tax-sim__result-card--solo {
+  margin-top: 16px;
+}
+
+.tax-sim__result-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.tax-sim__result-value {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.tax-sim__result-meta {
+  margin: 14px 0 0;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.tax-sim__table-wrap {
+  margin-top: 20px;
+  overflow-x: auto;
+}
+
+.tax-sim__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.tax-sim__table th,
+.tax-sim__table td {
+  padding: 10px 12px;
+  border: 1px solid var(--glass-border);
+  text-align: left;
+}
+
+.tax-sim__table th {
+  background: #f3f4f6;
+  font-weight: 600;
+}
+
+.tax-sim__num {
+  text-align: right;
+  font-weight: 600;
+}
+
+.tax-sim__regime-result {
+  margin-top: 16px;
+  padding: 14px;
+  background: var(--glass-bg-10);
+  border-radius: 8px;
+}
+
+.tax-sim__regime-result p {
+  margin: 0 0 8px;
+  font-size: 0.9375rem;
+}
+
+.tax-sim__regime-result p:last-child {
+  margin-bottom: 0;
+}
+
+.tax-sim__erro-inline {
+  margin-top: 10px;
+  color: #b91c1c;
+  font-size: 0.875rem;
+}
+
+.tax-sim__erro-global {
+  margin-bottom: 16px;
+}
+
+.tax-sim__quick-questions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.tax-sim__quick-q {
+  padding: 8px 14px;
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  background: #fff;
+  font-size: 0.8125rem;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.tax-sim__quick-q:hover {
+  border-color: var(--cor-principal);
+  background: rgba(164, 63, 155, 0.06);
+}
+
+.tax-sim__quick-answer {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  background: #f9fafb;
+  border-radius: 8px;
+  font-size: 0.875rem;
+}
+
+.tax-sim__card--chat .tax-sim__chat-area {
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 12px;
+  background: #f9fafb;
+  border-radius: 10px;
+  margin-bottom: 16px;
+}
+
+.tax-sim__chat-empty {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+.tax-sim__chat-msg {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 0.875rem;
+}
+
+.tax-sim__chat-msg--user {
+  background: rgba(164, 63, 155, 0.12);
+  margin-left: 24px;
+}
+
+.tax-sim__chat-msg--assistant {
+  background: #fff;
+  border: 1px solid var(--glass-border);
+  margin-right: 24px;
+}
+
+.tax-sim__chat-role {
+  display: block;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--cor-principal);
+  margin-bottom: 4px;
+}
+
+.tax-sim__typing {
+  font-style: italic;
+  color: var(--text-secondary);
+}
+
+.tax-sim__chat-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+@media (max-width: 1024px) {
+  .tax-sim__split {
+    grid-template-columns: 1fr;
+  }
+
+  .tax-sim__panel--results {
+    position: static;
+  }
+
+  .tax-sim__type-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .tax-sim__fields-row,
+  .tax-sim__fields--grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tax-sim__inline {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tax-sim__inline .btn {
+    width: 100%;
+  }
+}
+
+/* Sidebar oculta: conteúdo ocupa toda a largura (sobrescreve max-width das páginas) */
+.app-layout--sidebar-hidden .page-reforma.tax-sim {
+  max-width: none;
+  width: 100%;
+  margin: 0;
+}
+
+.app-layout--sidebar-hidden .tax-sim__split {
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 440px);
 }

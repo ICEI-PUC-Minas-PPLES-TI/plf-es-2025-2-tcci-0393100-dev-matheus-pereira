@@ -93,7 +93,7 @@ export default function Layout() {
     { to: '/clientes', label: 'Clientes', icon: PeopleIcon },
     { to: '/inadimplentes', label: 'Inadimplentes', icon: AlertIcon },
     { to: '/servicos', label: 'Serviços', icon: ServicesIcon },
-    { to: '/reforma-tributaria', label: 'Cálculo', icon: CalculatorIcon },
+    { to: '/reforma-tributaria', label: 'Simulador', icon: CalculatorIcon },
     { to: '/relatorios', label: 'Relatórios', icon: ChartIcon },
     ...(isProprietaria ? [{ to: '/usuarios', label: 'Usuários', icon: UserIcon }] : []),
   ]
